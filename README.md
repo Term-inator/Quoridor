@@ -1,0 +1,122 @@
+# Quoridor RL
+
+一个遵循官方标准双人规则的围墙棋（Quoridor）Python 实现，包含：
+
+- 与训练框架无关、不可变且可哈希的规则核心；
+- 标准 PettingZoo AEC 环境；
+- 固定的 209 维离散动作空间和合法动作 mask；
+- 双方共用网络所需的 canonical observation；
+- 人类对人类、人类对随机智能体的终端对局。
+
+首版固定为 9×9 棋盘、每人 10 面墙，不包含四人制、可变棋盘、训练算法或奖励塑形。项目暂未发布到 PyPI。
+
+## 开发环境
+
+项目使用 uv 管理，开发解释器为 Python 3.14，包支持 Python 3.11–3.14。
+
+```bash
+uv sync --python 3.14
+uv run pytest
+```
+
+## PettingZoo AEC 环境
+
+AEC（Agent Environment Cycle）表示智能体依次行动：每轮只给 `agent_selection` 指定的玩家调用 `step()`。终止或截断后的玩家必须以 `None` 完成 dead step。
+
+```python
+import numpy as np
+
+from quoridor_rl.env import env
+
+environment = env(max_plies=512)
+environment.reset(seed=0)
+
+for agent in environment.agent_iter():
+    observation, reward, terminated, truncated, info = environment.last()
+    if terminated or truncated:
+        action = None
+    else:
+        legal_ids = np.flatnonzero(observation["action_mask"])
+        action = int(np.random.choice(legal_ids))
+    environment.step(action)
+```
+
+### 动作空间
+
+动作空间是 `Discrete(209)`，编号始终使用当前玩家的 canonical 视角：
+
+| ID | 含义 |
+| --- | --- |
+| 0–80 | 9×9 棋子目标格，row-major |
+| 81–144 | 8×8 水平墙锚点，row-major |
+| 145–208 | 8×8 垂直墙锚点，row-major |
+
+玩家 1（`player_1`）的绝对棋盘会旋转 180°，因此两个玩家在 observation 中都从棋盘下方向上前进。动作、观察与 mask 使用同一视角，调用者不需要自行旋转。
+
+### Observation
+
+每次观察是一个字典：
+
+- `observation`：`float32`、形状 `(6, 9, 9)`；
+- `action_mask`：`int8`、形状 `(209,)`，仅当前玩家含合法动作，其余玩家全为零。
+
+六个 plane 依次为：己方棋子、对方棋子、水平墙锚点、垂直墙锚点、己方剩余墙数、对方剩余墙数。墙数除以 10 后广播到整个 9×9 plane；墙锚点使用左上 8×8，最后一行和一列补零。
+
+### 奖励与结束
+
+- 正常获胜：胜者 `+1`，败者 `-1`，属于 termination；
+- 其他合法行动：双方 `0`；
+- 达到 `max_plies`：双方 `0`，属于 truncation；
+- 非法动作：行动者立即以 `-1` 失败，对手得到 `+1`。
+
+稀疏奖励是环境对真实零和目标的标准定义，并非声称它对所有训练算法都最容易。它让不同算法的结果可比较，也直接支持 MCTS/AlphaZero 的终局价值目标。若实验需要 dense shaping，应在独立 wrapper 中显式添加，避免改变基础环境的任务含义。
+
+## 直接使用规则核心
+
+MCTS、bot 和测试可以绕过 RL 编号，直接处理语义动作：
+
+```python
+from quoridor_rl import MovePawn, Position, Square
+
+position = Position.initial()
+assert MovePawn(Square(7, 4)) in position.legal_actions()
+
+next_position = position.play(MovePawn(Square(7, 4)))
+assert position != next_position  # 原状态没有被修改
+```
+
+绝对坐标使用从上到下的 `row=0..8`、从左到右的 `col=0..8`。非法但结构完整的动作会抛出 `IllegalActionError`，并携带稳定的 `reason`。
+
+## 在终端游玩
+
+```bash
+# 两个人类玩家
+uv run quoridor --opponent human
+
+# 对随机智能体，可固定随机种子
+uv run quoridor --opponent random --seed 42
+```
+
+棋盘输入采用左下角为 `a1` 的人类坐标：
+
+```text
+move e2
+wall d4 horizontal
+wall d4 v
+quit
+```
+
+## 验证
+
+```bash
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy src
+```
+
+测试覆盖普通移动、直跳、墙/边界受阻后的斜跳、墙冲突、双方路径保留、终局、动作编码往返、canonical observation、AEC 生命周期、随机完整对局和 CLI。PettingZoo 官方 `api_test` 也包含在测试套件中。
+
+## License
+
+[MIT](LICENSE)
