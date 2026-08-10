@@ -1,0 +1,1 @@
+"""Optional Pygame desktop interface."""

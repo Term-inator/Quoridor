@@ -13,6 +13,9 @@ dependencies = [
     "pettingzoo>=1.26.1",
 ]
 
+[project.optional-dependencies]
+pygame = ["pygame-ce>=2.5.8,<3"]
+
 [dependency-groups]
 dev = [
     "hypothesis>=6.0.0",
@@ -23,6 +26,7 @@ dev = [
 
 [project.scripts]
 quoridor = "quoridor_rl.cli:main"
+quoridor-pygame = "quoridor_rl.pygame_ui.entry:main"
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]

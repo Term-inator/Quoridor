@@ -6,7 +6,8 @@
 - 标准 PettingZoo AEC 环境；
 - 固定的 209 维离散动作空间和合法动作 mask；
 - 双方共用网络所需的 canonical observation；
-- 人类对人类、人类对随机智能体的终端对局。
+- 人类对人类、人类对随机智能体的终端对局；
+- 可选的中文 Pygame 桌面界面，支持本地游玩和随机智能体观战。
 
 首版固定为 9×9 棋盘、每人 10 面墙，不包含四人制、可变棋盘、训练算法或奖励塑形。项目暂未发布到 PyPI。
 
@@ -17,6 +18,13 @@
 ```bash
 uv sync --python 3.14
 uv run pytest
+```
+
+基础安装不会安装 Pygame。需要图形界面时使用：
+
+```bash
+uv sync --extra pygame
+uv run quoridor-pygame
 ```
 
 ## PettingZoo AEC 环境
@@ -106,10 +114,26 @@ wall d4 v
 quit
 ```
 
+## 使用 Pygame 图形界面
+
+开始界面提供人类对人类、人类对随机智能体、随机智能体对随机智能体三种模式。人类对随机智能体时可以选择先手或后手；包含随机智能体的模式可以填写整数种子并选择播放速度。
+
+- 移动：直接点击棋盘上显示的合法目标；
+- 放墙：选择“横墙”或“竖墙”，鼠标会吸附到最近的墙锚点，单击确认；
+- 非法墙：红色预览、叉线和中文原因会同时显示，回合不会推进；
+- `Esc`：返回移动模式；
+- 空格：暂停或继续智能体对局；
+- 右方向键：暂停时单步执行一个智能体动作。
+
+达到 512 手仍无胜者时，界面将该局显示为“未决”，而不是围墙棋规则中的平局。当前项目只在 Linux 上验证图形界面；pygame-ce 虽为其他主流平台提供 wheel，本项目尚未声称已验证这些平台。
+
+界面随包原样分发 Noto Sans SC Regular 字体，其 SIL Open Font License 1.1 文本位于图形资源包中。字体资源会包含在基础 wheel 中，但 pygame-ce 仍只通过 `pygame` extra 安装。
+
 ## 验证
 
 ```bash
 uv run pytest
+uv run --extra pygame pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src

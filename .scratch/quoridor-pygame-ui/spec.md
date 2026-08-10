@@ -1,6 +1,6 @@
 # 围墙棋 Pygame 图形界面规格
 
-Status: ready-for-agent
+Status: implemented
 
 ## Problem Statement
 
