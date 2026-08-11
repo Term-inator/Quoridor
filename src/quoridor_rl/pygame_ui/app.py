@@ -28,6 +28,7 @@ from quoridor_rl.game import (
 
 WINDOW_INITIAL = (1280, 800)
 WINDOW_MIN = (960, 640)
+HISTORY_ROW_HEIGHT = 34
 
 COLORS = {
     "paper": pygame.Color("#f4f0e7"),
@@ -93,6 +94,8 @@ class Control(Enum):
     SPEED_SLOW = "speed_slow"
     SPEED_NORMAL = "speed_normal"
     SPEED_FAST = "speed_fast"
+    VIEW_HISTORY = "view_history"
+    RETURN_TO_RESULT = "return_to_result"
 
 
 class InputMode(Enum):
@@ -101,6 +104,17 @@ class InputMode(Enum):
     MOVE = "move"
     HORIZONTAL_WALL = "horizontal_wall"
     VERTICAL_WALL = "vertical_wall"
+
+
+@dataclass(frozen=True, slots=True)
+class ActionHistoryEntry:
+    """One position in a desktop game's history, including the initial one."""
+
+    ply: int
+    player: Player | None
+    action: Action | None
+    resulting_position: Position
+    move_start: Square | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +139,10 @@ class ApplicationSnapshot:
     last_move_start: Square | None
     window_size: tuple[int, int]
     status_lines: tuple[str, ...]
+    action_history: tuple[ActionHistoryEntry, ...]
+    reviewing_history: bool
+    reviewed_ply: int | None
+    displayed_position: Position | None
 
 
 class ActionChoosingAgent(Protocol):
@@ -231,6 +249,10 @@ class PygameApplication:
         self._result_winner: Player | None = None
         self._last_action: Action | None = None
         self._last_move_start: Square | None = None
+        self._action_history: list[ActionHistoryEntry] = []
+        self._reviewing_history = False
+        self._reviewed_ply: int | None = None
+        self._history_scroll_rows = 0
         self._quit_requested = False
         self._agents: dict[Player, ActionChoosingAgent] = {}
         self._paused = False
@@ -248,6 +270,8 @@ class PygameApplication:
         ] = {}
         self._board: BoardGeometry | None = None
         self._fonts: dict[int, pygame.font.Font] = {}
+        self._history_entry_rects: dict[int, pygame.Rect] = {}
+        self._history_visible_rows = 0
 
     @property
     def snapshot(self) -> ApplicationSnapshot:
@@ -270,6 +294,10 @@ class PygameApplication:
             last_move_start=self._last_move_start,
             window_size=self._surface_size,
             status_lines=self._status_lines(),
+            action_history=tuple(self._action_history),
+            reviewing_history=self._reviewing_history,
+            reviewed_ply=self._reviewed_ply,
+            displayed_position=self._displayed_position(),
         )
 
     def control_rect(self, control: Control) -> pygame.Rect:
@@ -301,6 +329,10 @@ class PygameApplication:
         """Return one visible segment from a player's ten-wall inventory."""
         return self._wall_inventory_segments[player][index].copy()
 
+    def history_entry_rect(self, ply: int) -> pygame.Rect:
+        """Return the visible rectangle for one history entry."""
+        return self._history_entry_rects[ply].copy()
+
     def handle_event(self, event: pygame.event.Event) -> bool:
         """Handle one real Pygame event and report whether to continue."""
         if event.type == pygame.QUIT:
@@ -319,13 +351,19 @@ class PygameApplication:
         ):
             self._handle_seed_key(event)
             return True
+        if event.type == pygame.MOUSEWHEEL:
+            self._scroll_history(event.y)
+            return True
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             self._handle_click(event.pos)
             return not self._quit_requested
         elif event.type == pygame.MOUSEMOTION:
             self._update_wall_preview(event.pos)
         elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-            self._set_input_mode(InputMode.MOVE)
+            if self._reviewing_history:
+                self._leave_history_review()
+            else:
+                self._set_input_mode(InputMode.MOVE)
         elif (
             event.type == pygame.KEYDOWN
             and event.key == pygame.K_SPACE
@@ -358,12 +396,17 @@ class PygameApplication:
         self._surface_size = surface.get_size()
         self._player_status_cards = {}
         self._wall_inventory_segments = {}
+        self._history_entry_rects = {}
+        self._history_visible_rows = 0
         surface.fill(COLORS["paper"])
         if self._screen is ApplicationScreen.START:
             self._draw_start(surface)
         else:
             self._draw_game(surface)
-            if self._screen in (ApplicationScreen.RESULT, ApplicationScreen.ERROR):
+            if (
+                self._screen in (ApplicationScreen.RESULT, ApplicationScreen.ERROR)
+                and not self._reviewing_history
+            ):
                 self._draw_result(surface)
 
     def _handle_click(self, point: tuple[int, int]) -> None:
@@ -415,7 +458,28 @@ class PygameApplication:
                     self._start_game()
             return
 
+        if self._reviewing_history:
+            return_to_result = self._controls.get(Control.RETURN_TO_RESULT)
+            if return_to_result is not None and return_to_result.collidepoint(point):
+                self._leave_history_review()
+                return
+            for ply, history_rect in self._history_entry_rects.items():
+                if history_rect.collidepoint(point):
+                    self._reviewed_ply = ply
+                    return
+            return
+
         if self._screen in (ApplicationScreen.RESULT, ApplicationScreen.ERROR):
+            view_history = self._controls.get(Control.VIEW_HISTORY)
+            if (
+                self._screen is ApplicationScreen.RESULT
+                and view_history is not None
+                and view_history.collidepoint(point)
+            ):
+                self._reviewing_history = True
+                self._reviewed_ply = self._plies
+                self._history_scroll_rows = 0
+                return
             restart = self._controls.get(Control.RESTART_GAME)
             if restart is not None and restart.collidepoint(point):
                 self._start_game()
@@ -425,6 +489,10 @@ class PygameApplication:
                 self._screen = ApplicationScreen.START
                 self._position = None
                 self._game_mode = None
+                self._action_history = []
+                self._reviewing_history = False
+                self._reviewed_ply = None
+                self._history_scroll_rows = 0
                 self._feedback = "请选择对局模式并开始。"
                 return
             exit_button = self._controls.get(Control.EXIT)
@@ -459,8 +527,8 @@ class PygameApplication:
             (Control.HORIZONTAL_WALL, InputMode.HORIZONTAL_WALL),
             (Control.VERTICAL_WALL, InputMode.VERTICAL_WALL),
         ):
-            rect = self._controls.get(control)
-            if rect is not None and rect.collidepoint(point):
+            control_rect = self._controls.get(control)
+            if control_rect is not None and control_rect.collidepoint(point):
                 self._set_input_mode(mode)
                 return
 
@@ -494,6 +562,18 @@ class PygameApplication:
         self._result_winner = None
         self._last_action = None
         self._last_move_start = None
+        self._action_history = [
+            ActionHistoryEntry(
+                ply=0,
+                player=None,
+                action=None,
+                resulting_position=self._position,
+                move_start=None,
+            )
+        ]
+        self._reviewing_history = False
+        self._reviewed_ply = None
+        self._history_scroll_rows = 0
         self._agents = {}
         if self._game_mode is GameMode.HUMAN_RANDOM:
             agent_player = Player(1 - self._human_player)
@@ -553,6 +633,14 @@ class PygameApplication:
     def _status_lines(self) -> tuple[str, ...]:
         if self._position is None:
             return (self._feedback,)
+        if self._reviewing_history:
+            entry = self._reviewed_history_entry()
+            assert entry is not None
+            return (
+                f"历史回放：第 {entry.ply} / {self._plies} 手",
+                _action_history_text(entry),
+                "滚轮浏览，点击记录切换局面。",
+            )
         input_labels = {
             InputMode.MOVE: "移动",
             InputMode.HORIZONTAL_WALL: "横墙",
@@ -562,6 +650,29 @@ class PygameApplication:
             f"已行动：{self._plies} 手",
             f"当前操作：{input_labels[self._input_mode]}",
             self._feedback,
+        )
+
+    def _reviewed_history_entry(self) -> ActionHistoryEntry | None:
+        if not self._reviewing_history or self._reviewed_ply is None:
+            return None
+        return self._action_history[self._reviewed_ply]
+
+    def _displayed_position(self) -> Position | None:
+        entry = self._reviewed_history_entry()
+        return entry.resulting_position if entry is not None else self._position
+
+    def _leave_history_review(self) -> None:
+        self._reviewing_history = False
+        self._reviewed_ply = None
+        self._history_scroll_rows = 0
+
+    def _scroll_history(self, wheel_y: int) -> None:
+        if not (self._screen is ApplicationScreen.PLAYING or self._reviewing_history):
+            return
+        maximum = max(0, len(self._action_history) - self._history_visible_rows)
+        self._history_scroll_rows = max(
+            0,
+            min(maximum, self._history_scroll_rows - wheel_y),
         )
 
     def _perform_agent_action(self) -> None:
@@ -660,6 +771,17 @@ class PygameApplication:
         self._plies += 1
         self._last_action = action
         self._last_move_start = move_start
+        assert mover is not None
+        self._action_history.append(
+            ActionHistoryEntry(
+                ply=self._plies,
+                player=mover,
+                action=action,
+                resulting_position=self._position,
+                move_start=move_start,
+            )
+        )
+        self._history_scroll_rows = 0
         self._input_mode = InputMode.MOVE
         self._preview_wall = None
         self._preview_reason = None
@@ -799,7 +921,17 @@ class PygameApplication:
         surface.blit(feedback, (panel.left + 70, panel.bottom - 155))
 
     def _draw_game(self, surface: pygame.Surface) -> None:
-        assert self._position is not None
+        position = self._displayed_position()
+        assert position is not None
+        history_entry = self._reviewed_history_entry()
+        last_action = (
+            history_entry.action if history_entry is not None else self._last_action
+        )
+        last_move_start = (
+            history_entry.move_start
+            if history_entry is not None
+            else self._last_move_start
+        )
         width, height = surface.get_size()
         margin = max(16, round(min(width, height) * 0.025))
         header_height = max(56, round(height * 0.08))
@@ -812,11 +944,15 @@ class PygameApplication:
         surface.blit(title, (margin, max(8, (header_height - title.get_height()) // 2)))
         pygame.draw.rect(surface, COLORS["board_dark"], board_rect, border_radius=18)
 
-        legal_targets = {
-            action.target
-            for action in self._legal_actions
-            if isinstance(action, MovePawn)
-        }
+        legal_targets = (
+            set()
+            if self._reviewing_history
+            else {
+                action.target
+                for action in self._legal_actions
+                if isinstance(action, MovePawn)
+            }
+        )
         for row in range(9):
             for col in range(9):
                 square = Square(row, col)
@@ -849,12 +985,9 @@ class PygameApplication:
                 ),
             )
 
-        if (
-            isinstance(self._last_action, MovePawn)
-            and self._last_move_start is not None
-        ):
-            start_rect = self._board.square_rect(self._last_move_start)
-            target_rect = self._board.square_rect(self._last_action.target)
+        if isinstance(last_action, MovePawn) and last_move_start is not None:
+            start_rect = self._board.square_rect(last_move_start)
+            target_rect = self._board.square_rect(last_action.target)
             pygame.draw.line(
                 surface,
                 COLORS["focus"],
@@ -878,7 +1011,7 @@ class PygameApplication:
             )
 
         for player in Player:
-            square = self._position.pawns[player]
+            square = position.pawns[player]
             rect = self._board.square_rect(square)
             pygame.draw.circle(
                 surface,
@@ -887,7 +1020,7 @@ class PygameApplication:
                 max(8, round(rect.width * 0.31)),
             )
         for player in Player:
-            for wall in self._position.placed_walls_by_player[player]:
+            for wall in position.placed_walls_by_player[player]:
                 wall_rect = self._board.wall_rect(wall)
                 pygame.draw.rect(
                     surface,
@@ -895,7 +1028,7 @@ class PygameApplication:
                     wall_rect,
                     border_radius=3,
                 )
-                if wall == self._last_action:
+                if wall == last_action:
                     pygame.draw.rect(
                         surface,
                         COLORS["focus"],
@@ -903,11 +1036,11 @@ class PygameApplication:
                         width=3,
                         border_radius=5,
                     )
-        if self._preview_wall is not None:
+        if self._preview_wall is not None and not self._reviewing_history:
             preview = self._board.wall_rect(self._preview_wall)
             preview_color = (
-                _player_color(self._position.to_move)
-                if self._preview_reason is None and self._position.to_move is not None
+                _player_color(position.to_move)
+                if self._preview_reason is None and position.to_move is not None
                 else COLORS["invalid"]
             )
             pygame.draw.rect(surface, preview_color, preview, border_radius=3)
@@ -942,12 +1075,27 @@ class PygameApplication:
             board_rect.height,
         )
         pygame.draw.rect(surface, COLORS["panel"], sidebar, border_radius=16)
-        cards_bottom = self._draw_player_status_cards(surface, sidebar)
+        cards_bottom = self._draw_player_status_cards(surface, sidebar, position)
         button_gap = 8
         button_width = max(76, (sidebar.width - 44 - button_gap * 2) // 3)
         button_y = cards_bottom + 22
         self._controls = {}
-        if self._game_mode is GameMode.RANDOM_RANDOM:
+        if self._reviewing_history:
+            return_to_result = pygame.Rect(
+                sidebar.left + 22,
+                button_y,
+                sidebar.width - 44,
+                46,
+            )
+            self._controls[Control.RETURN_TO_RESULT] = return_to_result
+            self._draw_button(
+                surface,
+                return_to_result,
+                "返回结果",
+                selected=False,
+            )
+            controls_bottom = return_to_result.bottom
+        elif self._game_mode is GameMode.RANDOM_RANDOM:
             controls_bottom = self._draw_playback_controls(
                 surface,
                 sidebar,
@@ -975,20 +1123,23 @@ class PygameApplication:
                 )
             controls_bottom = button_y + 46
         status_top = controls_bottom + 20
-        for index, line in enumerate(self._status_lines()):
+        status_lines = self._status_lines()
+        for index, line in enumerate(status_lines):
             text = self._font(16 if index < 2 else 15).render(
                 line,
                 True,
                 COLORS["ink"] if index < 2 else COLORS["muted"],
             )
             surface.blit(text, (sidebar.left + 22, status_top + index * 31))
+        history_top = status_top + len(status_lines) * 31 + 6
+        self._draw_action_history(surface, sidebar, history_top)
 
     def _draw_player_status_cards(
         self,
         surface: pygame.Surface,
         sidebar: pygame.Rect,
+        position: Position,
     ) -> int:
-        assert self._position is not None
         gap = 10
         left = sidebar.left + 22
         top = sidebar.top + 22
@@ -1004,7 +1155,7 @@ class PygameApplication:
             )
             self._player_status_cards[player] = card
             player_color = _player_color(player)
-            is_active = self._position.to_move is player
+            is_active = position.to_move is player
             pygame.draw.rect(surface, COLORS["paper"], card, border_radius=12)
             pygame.draw.rect(
                 surface,
@@ -1030,7 +1181,7 @@ class PygameApplication:
 
             label = self._font(13).render("剩余", True, COLORS["muted"])
             surface.blit(label, (card.left + 11, card.top + 43))
-            remaining = self._position.walls_remaining[player]
+            remaining = position.walls_remaining[player]
             count = self._font(22).render(
                 f"{remaining} / 10",
                 True,
@@ -1073,6 +1224,97 @@ class PygameApplication:
                     )
 
         return top + card_height
+
+    def _draw_action_history(
+        self,
+        surface: pygame.Surface,
+        sidebar: pygame.Rect,
+        top: int,
+    ) -> None:
+        heading = self._font(16).render(
+            "行动记录（最新在上）",
+            True,
+            COLORS["ink"],
+        )
+        surface.blit(heading, (sidebar.left + 22, top))
+
+        viewport = pygame.Rect(
+            sidebar.left + 18,
+            top + heading.get_height() + 8,
+            sidebar.width - 36,
+            max(0, sidebar.bottom - top - heading.get_height() - 26),
+        )
+        if viewport.height < HISTORY_ROW_HEIGHT:
+            return
+
+        pygame.draw.rect(surface, COLORS["paper"], viewport, border_radius=8)
+        pygame.draw.rect(
+            surface,
+            COLORS["line"],
+            viewport,
+            width=1,
+            border_radius=8,
+        )
+        visible_rows = max(1, viewport.height // HISTORY_ROW_HEIGHT)
+        self._history_visible_rows = visible_rows
+        maximum = max(0, len(self._action_history) - visible_rows)
+        self._history_scroll_rows = min(self._history_scroll_rows, maximum)
+        newest_first = tuple(reversed(self._action_history))
+        visible_entries = newest_first[
+            self._history_scroll_rows : self._history_scroll_rows + visible_rows
+        ]
+
+        previous_clip = surface.get_clip()
+        surface.set_clip(viewport)
+        row_width = viewport.width - 14
+        for index, entry in enumerate(visible_entries):
+            row = pygame.Rect(
+                viewport.left + 4,
+                viewport.top + index * HISTORY_ROW_HEIGHT + 2,
+                row_width,
+                HISTORY_ROW_HEIGHT - 4,
+            )
+            self._history_entry_rects[entry.ply] = row
+            selected = self._reviewing_history and self._reviewed_ply == entry.ply
+            pygame.draw.rect(surface, COLORS["panel"], row, border_radius=6)
+            if selected:
+                pygame.draw.rect(
+                    surface,
+                    COLORS["focus"],
+                    row,
+                    width=2,
+                    border_radius=6,
+                )
+            color = (
+                _player_color(entry.player)
+                if entry.player is not None
+                else COLORS["muted"]
+            )
+            pygame.draw.circle(surface, color, (row.left + 11, row.centery), 5)
+            label = self._font(14).render(
+                _action_history_text(entry),
+                True,
+                color,
+            )
+            surface.blit(
+                label,
+                (row.left + 23, row.centery - label.get_height() // 2),
+            )
+        surface.set_clip(previous_clip)
+
+        if maximum == 0:
+            return
+        track = pygame.Rect(
+            viewport.right - 7, viewport.top + 5, 3, viewport.height - 10
+        )
+        pygame.draw.rect(surface, COLORS["line"], track, border_radius=2)
+        thumb_height = max(18, round(track.height * visible_rows / len(newest_first)))
+        thumb_travel = track.height - thumb_height
+        thumb_top = track.top + round(
+            thumb_travel * self._history_scroll_rows / maximum
+        )
+        thumb = pygame.Rect(track.left, thumb_top, track.width, thumb_height)
+        pygame.draw.rect(surface, COLORS["muted"], thumb, border_radius=2)
 
     def _draw_playback_controls(
         self,
@@ -1153,15 +1395,25 @@ class PygameApplication:
         result = self._font(22).render(self._feedback, True, COLORS["muted"])
         surface.blit(result, (panel.centerx - result.get_width() // 2, panel.top + 94))
 
-        button_width = 150
-        gap = 14
-        total = button_width * 3 + gap * 2
-        left = panel.centerx - total // 2
         controls = (
-            (Control.RESTART_GAME, "再来一局"),
-            (Control.RETURN_TO_START, "返回开始"),
-            (Control.EXIT, "退出"),
+            (
+                (Control.VIEW_HISTORY, "查看回放"),
+                (Control.RESTART_GAME, "再来一局"),
+                (Control.RETURN_TO_START, "返回开始"),
+                (Control.EXIT, "退出"),
+            )
+            if self._screen is ApplicationScreen.RESULT
+            else (
+                (Control.RESTART_GAME, "再来一局"),
+                (Control.RETURN_TO_START, "返回开始"),
+                (Control.EXIT, "退出"),
+            )
         )
+        gap = 10
+        available_width = panel.width - 60
+        button_width = (available_width - gap * (len(controls) - 1)) // len(controls)
+        total = button_width * len(controls) + gap * (len(controls) - 1)
+        left = panel.centerx - total // 2
         self._controls = {}
         for index, (control, label) in enumerate(controls):
             rect = pygame.Rect(
@@ -1189,6 +1441,25 @@ def _human_square(square: Square) -> str:
 
 def _human_anchor(anchor: WallAnchor) -> str:
     return f"{chr(ord('a') + anchor.col)}{8 - anchor.row}"
+
+
+def _action_history_text(entry: ActionHistoryEntry) -> str:
+    if entry.player is None:
+        return "0. 初始局面"
+    assert entry.action is not None
+    player = f"player_{int(entry.player)}"
+    if isinstance(entry.action, MovePawn):
+        assert entry.move_start is not None
+        return (
+            f"{entry.ply}. {player} 移动 "
+            f"{_human_square(entry.move_start)} → {_human_square(entry.action.target)}"
+        )
+    orientation = (
+        "横墙" if entry.action.orientation is Orientation.HORIZONTAL else "竖墙"
+    )
+    return (
+        f"{entry.ply}. {player} 放置{orientation} {_human_anchor(entry.action.anchor)}"
+    )
 
 
 def run() -> int:

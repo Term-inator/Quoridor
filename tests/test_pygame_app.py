@@ -124,6 +124,7 @@ def test_human_wall_preview_uses_rules_and_illegal_click_does_not_advance() -> N
     assert application.snapshot.position == expected
     assert application.snapshot.plies == 1
     assert application.snapshot.input_mode is InputMode.MOVE
+    assert len(application.snapshot.action_history) == 2
 
     application.draw(surface)
     application.handle_event(
@@ -156,6 +157,7 @@ def test_human_wall_preview_uses_rules_and_illegal_click_does_not_advance() -> N
     assert application.snapshot.position == expected
     assert application.snapshot.position.to_move == expected.to_move
     assert application.snapshot.plies == 1
+    assert len(application.snapshot.action_history) == 2
     assert application.snapshot.feedback == (
         "未执行：与已有墙重叠或交叉。回合没有推进。"
     )
@@ -438,6 +440,7 @@ def test_completed_game_shows_result_and_can_restart_with_same_mode() -> None:
     assert application.snapshot.game_mode is GameMode.HUMAN_HUMAN
     assert application.snapshot.position == Position.initial()
     assert application.snapshot.plies == 0
+    assert tuple(entry.ply for entry in application.snapshot.action_history) == (0,)
 
 
 def test_action_limit_ends_the_game_as_undecided_not_a_draw() -> None:
@@ -776,3 +779,195 @@ def test_invalid_seed_stays_on_start_screen_with_explanation() -> None:
 
     assert application.snapshot.screen is ApplicationScreen.START
     assert application.snapshot.feedback == "随机种子必须是整数或留空。"
+
+
+def test_action_history_records_and_colors_successful_actions_newest_first() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import (
+        MovePawn,
+        Orientation,
+        PlaceWall,
+        Player,
+        Position,
+        Square,
+        WallAnchor,
+    )
+    from quoridor_rl.pygame_ui.app import (
+        COLORS,
+        Control,
+        PygameApplication,
+        _action_history_text,
+    )
+
+    application = PygameApplication()
+    surface = pygame.Surface((1280, 800))
+    application.draw(surface)
+    for control in (Control.MODE_HUMAN_HUMAN, Control.START_GAME):
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.control_rect(control).center,
+            )
+        )
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.square_rect(Square(7, 4)).center,
+        )
+    )
+    application.draw(surface)
+    wall = PlaceWall(WallAnchor(3, 3), Orientation.HORIZONTAL)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.HORIZONTAL_WALL).center,
+        )
+    )
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.wall_anchor_point(wall.anchor),
+        )
+    )
+    application.draw(surface)
+
+    history = application.snapshot.action_history
+    assert tuple(entry.ply for entry in history) == (0, 1, 2)
+    assert history[0].player is None
+    assert history[0].action is None
+    assert history[0].resulting_position == Position.initial()
+    assert history[1].player is Player.PLAYER_0
+    assert history[1].action == MovePawn(Square(7, 4))
+    assert history[1].move_start == Square(8, 4)
+    assert history[2].player is Player.PLAYER_1
+    assert history[2].action == wall
+    assert history[2].resulting_position == history[1].resulting_position.play(wall)
+    assert _action_history_text(history[0]) == "0. 初始局面"
+    assert _action_history_text(history[1]) == "1. player_0 移动 e1 → e2"
+    assert _action_history_text(history[2]) == "2. player_1 放置横墙 d5"
+
+    newest = application.history_entry_rect(2)
+    previous = application.history_entry_rect(1)
+    initial = application.history_entry_rect(0)
+    assert newest.top < previous.top < initial.top
+    assert surface.get_at((newest.left + 11, newest.centery)) == COLORS["p1"]
+    assert surface.get_at((previous.left + 11, previous.centery)) == COLORS["p0"]
+    assert surface.get_at((initial.left + 11, initial.centery)) == COLORS["muted"]
+
+
+def test_live_history_is_read_only_and_scrolls_to_the_initial_position() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import Position
+    from quoridor_rl.pygame_ui.app import WINDOW_MIN, Control, PygameApplication
+
+    class FirstLegalAgent:
+        def choose_action(self, position: Position):
+            return position.legal_actions()[0]
+
+    application = PygameApplication(agent_factory=lambda seed: FirstLegalAgent())
+    surface = pygame.Surface(WINDOW_MIN)
+    application.draw(surface)
+    for control in (Control.MODE_RANDOM_RANDOM, Control.START_GAME):
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.control_rect(control).center,
+            )
+        )
+    for _ in range(6):
+        application.update(500)
+    application.draw(surface)
+
+    live_position = application.snapshot.position
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.history_entry_rect(4).center,
+        )
+    )
+    assert application.snapshot.reviewing_history is False
+    assert application.snapshot.displayed_position == live_position
+
+    application.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, y=-100, x=0))
+    application.draw(surface)
+    assert application.history_entry_rect(0)
+    application.handle_event(pygame.event.Event(pygame.MOUSEWHEEL, y=100, x=0))
+    application.draw(surface)
+    assert application.history_entry_rect(6)
+
+
+def test_completed_game_can_replay_history_without_changing_final_position() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import Position, Square
+    from quoridor_rl.pygame_ui.app import (
+        ApplicationScreen,
+        Control,
+        PygameApplication,
+    )
+
+    application = PygameApplication(max_plies=2)
+    surface = pygame.Surface((1280, 800))
+    application.draw(surface)
+    for control in (Control.MODE_HUMAN_HUMAN, Control.START_GAME):
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.control_rect(control).center,
+            )
+        )
+    for target in (Square(7, 4), Square(1, 4)):
+        application.draw(surface)
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.square_rect(target).center,
+            )
+        )
+
+    assert application.snapshot.screen is ApplicationScreen.RESULT
+    final_position = application.snapshot.position
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.VIEW_HISTORY).center,
+        )
+    )
+    assert application.snapshot.reviewing_history is True
+    assert application.snapshot.reviewed_ply == 2
+    assert application.snapshot.displayed_position == final_position
+
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.history_entry_rect(0).center,
+        )
+    )
+    assert application.snapshot.position == final_position
+    assert application.snapshot.reviewed_ply == 0
+    assert application.snapshot.displayed_position == Position.initial()
+    assert application.snapshot.status_lines[0] == "历史回放：第 0 / 2 手"
+
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.RETURN_TO_RESULT).center,
+        )
+    )
+    assert application.snapshot.reviewing_history is False
+    assert application.snapshot.reviewed_ply is None
+    assert application.snapshot.displayed_position == final_position
