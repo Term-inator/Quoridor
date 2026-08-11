@@ -187,6 +187,12 @@ class Position:
                         walls.append(candidate)
         return moves + tuple(walls)
 
+    def shortest_path_length(self, player: Player) -> int:
+        """Return the wall-only shortest distance from ``player`` to its goal row."""
+        distance = self._shortest_path_length(player, self._all_placed_walls())
+        assert distance is not None
+        return distance
+
     def _wall_conflicts(self, candidate: PlaceWall) -> bool:
         for placed in self._all_placed_walls():
             if candidate.orientation is placed.orientation:
@@ -214,14 +220,21 @@ class Position:
         player: Player,
         walls: frozenset[PlaceWall],
     ) -> bool:
+        return self._shortest_path_length(player, walls) is not None
+
+    def _shortest_path_length(
+        self,
+        player: Player,
+        walls: frozenset[PlaceWall],
+    ) -> int | None:
         goal_row = 0 if player is Player.PLAYER_0 else 8
-        frontier = deque([self._pawns[player]])
+        frontier = deque([(self._pawns[player], 0)])
         visited = {self._pawns[player]}
 
         while frontier:
-            square = frontier.popleft()
+            square, distance = frontier.popleft()
             if square.row == goal_row:
-                return True
+                return distance
             for row_delta, col_delta in ((-1, 0), (0, -1), (0, 1), (1, 0)):
                 neighbor_row = square.row + row_delta
                 neighbor_col = square.col + col_delta
@@ -232,9 +245,9 @@ class Position:
                     walls, square, neighbor
                 ):
                     visited.add(neighbor)
-                    frontier.append(neighbor)
+                    frontier.append((neighbor, distance + 1))
 
-        return False
+        return None
 
     def _legal_pawn_targets(self) -> tuple[Square, ...]:
         assert self._to_move is not None

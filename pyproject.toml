@@ -23,6 +23,12 @@ dev = [
     "pytest>=8.0.0",
     "ruff>=0.12.0",
 ]
+train = [
+    "matplotlib>=3.10.0,<4",
+    "tensorboard>=2.20.0,<3",
+    "torch>=2.9.0,<3",
+    "torchrl>=0.13.0,<0.14",
+]
 
 [project.scripts]
 quoridor = "quoridor_rl.cli:main"
@@ -33,5 +39,12 @@ requires = ["uv_build>=0.11.26,<0.12.0"]
 build-backend = "uv_build"
 
 [[tool.mypy.overrides]]
-module = ["pettingzoo", "pettingzoo.*"]
+module = [
+    "pettingzoo",
+    "pettingzoo.*",
+    "tensordict",
+    "tensordict.*",
+    "torchrl",
+    "torchrl.*",
+]
 ignore_missing_imports = true

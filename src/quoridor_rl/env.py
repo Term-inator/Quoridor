@@ -68,7 +68,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
             for agent in self.possible_agents
         }
         self._codec = ActionCodec()
-        self.position = Position.initial()
+        self._position = Position.initial()
         self.plies = 0
         self.agents: list[Agent] = []
         self.agent_selection = "player_0"
@@ -85,7 +85,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         options: dict[str, Any] | None = None,
     ) -> None:
         del seed, options
-        self.position = Position.initial()
+        self._position = Position.initial()
         self.plies = 0
         self.agents = self.possible_agents[:]
         self.rewards = {agent: 0.0 for agent in self.agents}
@@ -98,6 +98,11 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
 
     def observation_space(self, agent: Agent) -> spaces.Space:
         return self.observation_spaces[agent]
+
+    @property
+    def position(self) -> Position:
+        """Return the current immutable rule position."""
+        return self._position
 
     def action_space(self, agent: Agent) -> spaces.Space:
         return self.action_spaces[agent]
@@ -169,7 +174,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
             self._accumulate_rewards()
             return
 
-        self.position = next_position
+        self._position = next_position
         self.plies += 1
 
         if self.position.winner is not None:

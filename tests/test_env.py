@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from pettingzoo.test import api_test
 
 from quoridor_rl.codec import ActionCodec
@@ -38,6 +39,18 @@ def test_reset_exposes_standard_spaces_masks_and_canonical_observations() -> Non
     assert np.all(player_0["observation"][4:] == 1)
     assert environment.observation_space("player_0").contains(player_0)
     assert environment.observation_space("player_1").contains(player_1)
+
+
+def test_unwrapped_environment_exposes_a_read_only_position() -> None:
+    environment = env()
+    environment.reset()
+
+    assert environment.unwrapped.position.pawns == (
+        Square(8, 4),
+        Square(0, 4),
+    )
+    with pytest.raises(AttributeError):
+        environment.unwrapped.position = environment.unwrapped.position
 
 
 def test_step_rotates_the_next_players_view_and_clears_inactive_mask() -> None:

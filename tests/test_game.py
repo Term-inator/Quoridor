@@ -23,6 +23,38 @@ def test_initial_position_matches_official_two_player_setup() -> None:
     assert position.winner is None
 
 
+def test_initial_position_has_an_eight_step_path_for_each_player_identity() -> None:
+    position = Position.initial()
+
+    assert position.shortest_path_length(Player.PLAYER_0) == 8
+    assert position.shortest_path_length(Player.PLAYER_1) == 8
+
+
+def test_wall_only_shortest_path_counts_a_required_detour() -> None:
+    position = Position.initial().play(
+        PlaceWall(WallAnchor(7, 3), Orientation.HORIZONTAL)
+    )
+
+    assert position.shortest_path_length(Player.PLAYER_0) == 9
+
+
+def test_wall_only_shortest_path_ignores_pawn_occupancy() -> None:
+    position = Position.initial()
+    for target in (
+        Square(7, 4),
+        Square(1, 4),
+        Square(6, 4),
+        Square(2, 4),
+        Square(5, 4),
+        Square(3, 4),
+        Square(4, 4),
+    ):
+        position = position.play(MovePawn(target))
+
+    assert position.pawns == (Square(4, 4), Square(3, 4))
+    assert position.shortest_path_length(Player.PLAYER_0) == 4
+
+
 def test_initial_position_lists_pawn_moves_and_every_wall_slot() -> None:
     actions = Position.initial().legal_actions()
 

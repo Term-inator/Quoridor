@@ -34,7 +34,7 @@ AEC（Agent Environment Cycle）表示智能体依次行动：每轮只给 `agen
 ```python
 import numpy as np
 
-from quoridor_rl.env import env
+from quoridor_rl import env
 
 environment = env(max_plies=512)
 environment.reset(seed=0)
@@ -79,21 +79,42 @@ for agent in environment.agent_iter():
 
 稀疏奖励是环境对真实零和目标的标准定义，并非声称它对所有训练算法都最容易。它让不同算法的结果可比较，也直接支持 MCTS/AlphaZero 的终局价值目标。若实验需要 dense shaping，应在独立 wrapper 中显式添加，避免改变基础环境的任务含义。
 
+当前不可变规则局面可通过 `environment.unwrapped.position` 只读访问，便于训练 wrapper 和搜索算法复用规则核心；给该属性赋值会失败。
+
 ## 直接使用规则核心
 
 MCTS、bot 和测试可以绕过 RL 编号，直接处理语义动作：
 
 ```python
-from quoridor_rl import MovePawn, Position, Square
+from quoridor_rl import MovePawn, Player, Position, Square
 
 position = Position.initial()
 assert MovePawn(Square(7, 4)) in position.legal_actions()
 
 next_position = position.play(MovePawn(Square(7, 4)))
 assert position != next_position  # 原状态没有被修改
+assert position.shortest_path_length(Player.PLAYER_0) == 8
 ```
 
 绝对坐标使用从上到下的 `row=0..8`、从左到右的 `col=0..8`。非法但结构完整的动作会抛出 `IllegalActionError`，并携带稳定的 `reason`。
+
+`shortest_path_length()` 返回只考虑墙体、忽略棋子占位时，到对应目标行的最少步数。它与墙合法性检查复用同一份寻路规则。
+
+## 本地 PPO 学习验证
+
+仓库包含一个不会进入发行 wheel 的探索性 masked PPO 自博弈实验，用于在发布前验证 observation、action mask 和奖励信号是否能够产生学习。基础环境仍保持稀疏的终局零和奖励；dense potential reward 只存在于 `experiments/ppo/` 的训练 wrapper 中。
+
+```bash
+uv sync --group train
+
+# 短 CPU/CUDA 链路验证
+uv run --group train python -m experiments.ppo.train --smoke --device cuda
+
+# seed 0，最长训练 120 分钟，总流程不超过 150 分钟
+uv run --group train python -m experiments.ppo.train --device cuda
+```
+
+正式实验在 15、30、60、120 分钟进行 200 局先后手均衡验证，并用最佳 checkpoint 对随机智能体评估 1,000 局。可提交的指标、摘要和曲线写入 `experiments/ppo/results/seed-0/`；checkpoint 与 TensorBoard 日志写入被 Git 忽略的 `experiments/ppo/artifacts/seed-0/`。单 seed 达标只是继续多 seed 验证的依据，不构成 PyPI 发布结论。
 
 ## 在终端游玩
 
