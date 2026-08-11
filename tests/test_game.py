@@ -18,7 +18,7 @@ def test_initial_position_matches_official_two_player_setup() -> None:
 
     assert position.pawns == (Square(8, 4), Square(0, 4))
     assert position.walls_remaining == (10, 10)
-    assert position.placed_walls == frozenset()
+    assert position.placed_walls_by_player == (frozenset(), frozenset())
     assert position.to_move is Player.PLAYER_0
     assert position.winner is None
 
@@ -73,7 +73,7 @@ def test_placing_a_wall_spends_inventory_and_blocks_both_covered_edges() -> None
 
     position = Position.initial().play(wall)
 
-    assert position.placed_walls == frozenset({wall})
+    assert position.placed_walls_by_player == (frozenset({wall}), frozenset())
     assert position.walls_remaining == (9, 10)
     assert position.to_move is Player.PLAYER_1
 
@@ -81,6 +81,26 @@ def test_placing_a_wall_spends_inventory_and_blocks_both_covered_edges() -> None
     assert MovePawn(Square(7, 4)) not in position.legal_actions()
     assert MovePawn(Square(8, 3)) in position.legal_actions()
     assert MovePawn(Square(8, 5)) in position.legal_actions()
+
+
+def test_placed_walls_preserve_each_player_identity() -> None:
+    player_0_wall = PlaceWall(WallAnchor(3, 2), Orientation.HORIZONTAL)
+    player_1_wall = PlaceWall(WallAnchor(5, 5), Orientation.VERTICAL)
+
+    initial = Position.initial()
+    after_player_0 = initial.play(player_0_wall)
+    after_player_1 = after_player_0.play(player_1_wall)
+
+    assert initial.placed_walls_by_player == (frozenset(), frozenset())
+    assert after_player_0.placed_walls_by_player == (
+        frozenset({player_0_wall}),
+        frozenset(),
+    )
+    assert after_player_1.placed_walls_by_player == (
+        frozenset({player_0_wall}),
+        frozenset({player_1_wall}),
+    )
+    assert after_player_1.walls_remaining == (9, 9)
 
 
 def test_wall_candidates_exclude_crossing_and_overlapping_placements() -> None:

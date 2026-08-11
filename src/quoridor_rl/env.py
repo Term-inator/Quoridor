@@ -114,10 +114,11 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         observation[0, own_row, own_col] = 1.0
         observation[1, opponent_row, opponent_col] = 1.0
 
-        for wall in self.position.placed_walls:
-            row, col = _anchor_in_view(wall.anchor.row, wall.anchor.col, player)
-            plane = 2 if wall.orientation is Orientation.HORIZONTAL else 3
-            observation[plane, row, col] = 1.0
+        for player_walls in self.position.placed_walls_by_player:
+            for wall in player_walls:
+                row, col = _anchor_in_view(wall.anchor.row, wall.anchor.col, player)
+                plane = 2 if wall.orientation is Orientation.HORIZONTAL else 3
+                observation[plane, row, col] = 1.0
 
         observation[4].fill(self.position.walls_remaining[player] / 10.0)
         observation[5].fill(self.position.walls_remaining[opponent] / 10.0)

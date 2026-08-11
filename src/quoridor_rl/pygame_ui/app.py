@@ -241,6 +241,11 @@ class PygameApplication:
         self._preview_reason: IllegalActionReason | None = None
         self._surface_size = WINDOW_INITIAL
         self._controls: dict[Control, pygame.Rect] = {}
+        self._player_status_cards: dict[Player, pygame.Rect] = {}
+        self._wall_inventory_segments: dict[
+            Player,
+            tuple[pygame.Rect, ...],
+        ] = {}
         self._board: BoardGeometry | None = None
         self._fonts: dict[int, pygame.font.Font] = {}
 
@@ -283,6 +288,18 @@ class PygameApplication:
             raise RuntimeError("the playing board has not been drawn")
         x, y = self._board.anchor_center(anchor)
         return round(x), round(y)
+
+    def player_status_rect(self, player: Player) -> pygame.Rect:
+        """Return the visible status-card rectangle for a player identity."""
+        return self._player_status_cards[player].copy()
+
+    def wall_inventory_segment_rect(
+        self,
+        player: Player,
+        index: int,
+    ) -> pygame.Rect:
+        """Return one visible segment from a player's ten-wall inventory."""
+        return self._wall_inventory_segments[player][index].copy()
 
     def handle_event(self, event: pygame.event.Event) -> bool:
         """Handle one real Pygame event and report whether to continue."""
@@ -339,6 +356,8 @@ class PygameApplication:
     def draw(self, surface: pygame.Surface) -> None:
         """Draw the current visible state to a real Pygame surface."""
         self._surface_size = surface.get_size()
+        self._player_status_cards = {}
+        self._wall_inventory_segments = {}
         surface.fill(COLORS["paper"])
         if self._screen is ApplicationScreen.START:
             self._draw_start(surface)
@@ -534,23 +553,12 @@ class PygameApplication:
     def _status_lines(self) -> tuple[str, ...]:
         if self._position is None:
             return (self._feedback,)
-        current = (
-            f"player_{int(self._position.to_move)}"
-            if self._position.to_move is not None
-            else "—"
-        )
         input_labels = {
             InputMode.MOVE: "移动",
             InputMode.HORIZONTAL_WALL: "横墙",
             InputMode.VERTICAL_WALL: "竖墙",
         }
         return (
-            f"当前行动方：{current}",
-            (
-                "剩余墙："
-                f"player_0 {self._position.walls_remaining[0]} · "
-                f"player_1 {self._position.walls_remaining[1]}"
-            ),
             f"已行动：{self._plies} 手",
             f"当前操作：{input_labels[self._input_mode]}",
             self._feedback,
@@ -874,33 +882,44 @@ class PygameApplication:
             rect = self._board.square_rect(square)
             pygame.draw.circle(
                 surface,
-                COLORS["p0"] if player is Player.PLAYER_0 else COLORS["p1"],
+                _player_color(player),
                 rect.center,
                 max(8, round(rect.width * 0.31)),
             )
-        for wall in self._position.placed_walls:
-            wall_rect = self._board.wall_rect(wall)
-            pygame.draw.rect(
-                surface,
-                COLORS["ink"],
-                wall_rect,
-                border_radius=3,
-            )
-            if wall == self._last_action:
+        for player in Player:
+            for wall in self._position.placed_walls_by_player[player]:
+                wall_rect = self._board.wall_rect(wall)
                 pygame.draw.rect(
                     surface,
-                    COLORS["focus"],
-                    wall_rect.inflate(6, 6),
-                    width=3,
-                    border_radius=5,
+                    _player_color(player),
+                    wall_rect,
+                    border_radius=3,
                 )
+                if wall == self._last_action:
+                    pygame.draw.rect(
+                        surface,
+                        COLORS["focus"],
+                        wall_rect.inflate(6, 6),
+                        width=3,
+                        border_radius=5,
+                    )
         if self._preview_wall is not None:
             preview = self._board.wall_rect(self._preview_wall)
             preview_color = (
-                COLORS["valid"] if self._preview_reason is None else COLORS["invalid"]
+                _player_color(self._position.to_move)
+                if self._preview_reason is None and self._position.to_move is not None
+                else COLORS["invalid"]
             )
             pygame.draw.rect(surface, preview_color, preview, border_radius=3)
-            if self._preview_reason is not None:
+            if self._preview_reason is None:
+                pygame.draw.rect(
+                    surface,
+                    COLORS["white"],
+                    preview,
+                    width=2,
+                    border_radius=3,
+                )
+            else:
                 pygame.draw.line(
                     surface,
                     COLORS["white"],
@@ -923,12 +942,17 @@ class PygameApplication:
             board_rect.height,
         )
         pygame.draw.rect(surface, COLORS["panel"], sidebar, border_radius=16)
+        cards_bottom = self._draw_player_status_cards(surface, sidebar)
         button_gap = 8
         button_width = max(76, (sidebar.width - 44 - button_gap * 2) // 3)
-        button_y = sidebar.top + 188
+        button_y = cards_bottom + 22
         self._controls = {}
         if self._game_mode is GameMode.RANDOM_RANDOM:
-            self._draw_playback_controls(surface, sidebar, button_y)
+            controls_bottom = self._draw_playback_controls(
+                surface,
+                sidebar,
+                button_y,
+            )
         else:
             mode_controls = (
                 (Control.MOVE, "移动", InputMode.MOVE),
@@ -949,20 +973,113 @@ class PygameApplication:
                     label,
                     selected=self._input_mode is mode,
                 )
+            controls_bottom = button_y + 46
+        status_top = controls_bottom + 20
         for index, line in enumerate(self._status_lines()):
-            text = self._font(15 if index else 18).render(
+            text = self._font(16 if index < 2 else 15).render(
                 line,
                 True,
-                COLORS["ink"] if index < 4 else COLORS["muted"],
+                COLORS["ink"] if index < 2 else COLORS["muted"],
             )
-            surface.blit(text, (sidebar.left + 22, sidebar.top + 22 + index * 31))
+            surface.blit(text, (sidebar.left + 22, status_top + index * 31))
+
+    def _draw_player_status_cards(
+        self,
+        surface: pygame.Surface,
+        sidebar: pygame.Rect,
+    ) -> int:
+        assert self._position is not None
+        gap = 10
+        left = sidebar.left + 22
+        top = sidebar.top + 22
+        card_width = (sidebar.width - 44 - gap) // 2
+        card_height = 122
+
+        for player in Player:
+            card = pygame.Rect(
+                left + int(player) * (card_width + gap),
+                top,
+                card_width,
+                card_height,
+            )
+            self._player_status_cards[player] = card
+            player_color = _player_color(player)
+            is_active = self._position.to_move is player
+            pygame.draw.rect(surface, COLORS["paper"], card, border_radius=12)
+            pygame.draw.rect(
+                surface,
+                player_color if is_active else COLORS["line"],
+                card,
+                width=3 if is_active else 1,
+                border_radius=12,
+            )
+
+            marker_center = (card.left + 13, card.top + 17)
+            pygame.draw.circle(surface, player_color, marker_center, 5)
+            identity = self._font(15).render(
+                f"player_{int(player)}",
+                True,
+                COLORS["ink"],
+            )
+            surface.blit(identity, (card.left + 23, card.top + 7))
+            if is_active:
+                active = self._font(12).render("行动中", True, player_color)
+                surface.blit(
+                    active, (card.right - active.get_width() - 10, card.top + 9)
+                )
+
+            label = self._font(13).render("剩余", True, COLORS["muted"])
+            surface.blit(label, (card.left + 11, card.top + 43))
+            remaining = self._position.walls_remaining[player]
+            count = self._font(22).render(
+                f"{remaining} / 10",
+                True,
+                player_color,
+            )
+            surface.blit(count, (card.right - count.get_width() - 10, card.top + 34))
+
+            segment_gap = 2
+            segment_left = card.left + 10
+            segment_width = max(
+                3,
+                (card.width - 20 - segment_gap * 9) // 10,
+            )
+            segment_top = card.bottom - 28
+            segments = tuple(
+                pygame.Rect(
+                    segment_left + index * (segment_width + segment_gap),
+                    segment_top,
+                    segment_width,
+                    14,
+                )
+                for index in range(10)
+            )
+            self._wall_inventory_segments[player] = segments
+            for index, segment in enumerate(segments):
+                if index < remaining:
+                    pygame.draw.rect(
+                        surface,
+                        player_color,
+                        segment,
+                        border_radius=2,
+                    )
+                else:
+                    pygame.draw.rect(
+                        surface,
+                        COLORS["line"],
+                        segment,
+                        width=1,
+                        border_radius=2,
+                    )
+
+        return top + card_height
 
     def _draw_playback_controls(
         self,
         surface: pygame.Surface,
         sidebar: pygame.Rect,
         top: int,
-    ) -> None:
+    ) -> int:
         gap = 10
         primary_width = (sidebar.width - 54) // 2
         pause = pygame.Rect(sidebar.left + 22, top, primary_width, 46)
@@ -999,6 +1116,7 @@ class PygameApplication:
                 label,
                 selected=self._agent_delay_ms == delay,
             )
+        return speed_top + 42
 
     def _draw_button(
         self,
@@ -1059,6 +1177,10 @@ class PygameApplication:
         if size not in self._fonts:
             self._fonts[size] = pygame.font.Font(io.BytesIO(self._font_bytes), size)
         return self._fonts[size]
+
+
+def _player_color(player: Player) -> pygame.Color:
+    return COLORS["p0"] if player is Player.PLAYER_0 else COLORS["p1"]
 
 
 def _human_square(square: Square) -> str:

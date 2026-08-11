@@ -76,7 +76,12 @@ def test_humans_can_start_a_game_and_move_to_a_legal_target() -> None:
 def test_human_wall_preview_uses_rules_and_illegal_click_does_not_advance() -> None:
     pygame = pytest.importorskip("pygame")
     from quoridor_rl import Orientation, PlaceWall, Position, WallAnchor
-    from quoridor_rl.pygame_ui.app import Control, InputMode, PygameApplication
+    from quoridor_rl.pygame_ui.app import (
+        COLORS,
+        Control,
+        InputMode,
+        PygameApplication,
+    )
 
     application = PygameApplication()
     surface = pygame.Surface((1280, 800))
@@ -134,6 +139,12 @@ def test_human_wall_preview_uses_rules_and_illegal_click_does_not_advance() -> N
             pos=application.wall_anchor_point(wall.anchor),
         )
     )
+    application.draw(surface)
+    invalid_center = application.wall_anchor_point(wall.anchor)
+    assert surface.get_at(invalid_center) == COLORS["white"]
+    assert (
+        surface.get_at((invalid_center[0], invalid_center[1] + 4)) == COLORS["invalid"]
+    )
     application.handle_event(
         pygame.event.Event(
             pygame.MOUSEBUTTONDOWN,
@@ -148,6 +159,125 @@ def test_human_wall_preview_uses_rules_and_illegal_click_does_not_advance() -> N
     assert application.snapshot.feedback == (
         "未执行：与已有墙重叠或交叉。回合没有推进。"
     )
+
+
+def test_wall_colors_and_inventory_cards_follow_player_identity() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import Orientation, PlaceWall, Player, WallAnchor
+    from quoridor_rl.pygame_ui.app import COLORS, Control, PygameApplication
+
+    application = PygameApplication()
+    surface = pygame.Surface((1280, 800))
+    application.draw(surface)
+    for control in (Control.MODE_HUMAN_HUMAN, Control.START_GAME):
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.control_rect(control).center,
+            )
+        )
+    application.draw(surface)
+
+    player_0_wall = PlaceWall(WallAnchor(3, 3), Orientation.HORIZONTAL)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.HORIZONTAL_WALL).center,
+        )
+    )
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEMOTION,
+            pos=application.wall_anchor_point(player_0_wall.anchor),
+        )
+    )
+    application.draw(surface)
+    assert (
+        surface.get_at(application.wall_anchor_point(player_0_wall.anchor))
+        == (COLORS["p0"])
+    )
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.wall_anchor_point(player_0_wall.anchor),
+        )
+    )
+    application.draw(surface)
+
+    assert (
+        surface.get_at(application.player_status_rect(Player.PLAYER_1).midtop)
+        == (COLORS["p1"])
+    )
+    assert (
+        surface.get_at(
+            application.wall_inventory_segment_rect(Player.PLAYER_0, 8).center
+        )
+        == COLORS["p0"]
+    )
+    assert (
+        surface.get_at(
+            application.wall_inventory_segment_rect(Player.PLAYER_0, 9).center
+        )
+        == COLORS["paper"]
+    )
+    assert (
+        surface.get_at(
+            application.wall_inventory_segment_rect(Player.PLAYER_1, 9).center
+        )
+        == COLORS["p1"]
+    )
+
+    player_1_wall = PlaceWall(WallAnchor(5, 5), Orientation.VERTICAL)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.VERTICAL_WALL).center,
+        )
+    )
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEMOTION,
+            pos=application.wall_anchor_point(player_1_wall.anchor),
+        )
+    )
+    application.draw(surface)
+    assert (
+        surface.get_at(application.wall_anchor_point(player_1_wall.anchor))
+        == (COLORS["p1"])
+    )
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.wall_anchor_point(player_1_wall.anchor),
+        )
+    )
+    application.draw(surface)
+
+    assert (
+        surface.get_at(application.wall_anchor_point(player_0_wall.anchor))
+        == (COLORS["p0"])
+    )
+    assert (
+        surface.get_at(application.wall_anchor_point(player_1_wall.anchor))
+        == (COLORS["p1"])
+    )
+    assert (
+        surface.get_at(application.player_status_rect(Player.PLAYER_0).midtop)
+        == (COLORS["p0"])
+    )
+    assert (
+        surface.get_at(
+            application.wall_inventory_segment_rect(Player.PLAYER_1, 9).center
+        )
+        == COLORS["paper"]
+    )
+    assert application.snapshot.position is not None
+    assert application.snapshot.position.walls_remaining == (9, 9)
 
 
 def test_agent_game_waits_pauses_and_advances_exactly_one_step() -> None:
@@ -515,7 +645,7 @@ def test_last_move_remains_visible_until_another_legal_action() -> None:
 
 def test_resizing_keeps_board_and_controls_visible_above_minimum_size() -> None:
     pygame = pytest.importorskip("pygame")
-    from quoridor_rl import Square
+    from quoridor_rl import Player, Square
     from quoridor_rl.pygame_ui.app import (
         WINDOW_MIN,
         Control,
@@ -545,9 +675,15 @@ def test_resizing_keeps_board_and_controls_visible_above_minimum_size() -> None:
         assert visible.contains(application.square_rect(Square(0, 0)))
         assert visible.contains(application.square_rect(Square(8, 8)))
         assert visible.contains(application.control_rect(Control.HORIZONTAL_WALL))
+        for player in Player:
+            assert visible.contains(application.player_status_rect(player))
+            for index in range(10):
+                assert visible.contains(
+                    application.wall_inventory_segment_rect(player, index)
+                )
 
 
-def test_playing_sidebar_exposes_complete_match_status() -> None:
+def test_playing_sidebar_exposes_match_details_below_inventory_cards() -> None:
     pygame = pytest.importorskip("pygame")
     from quoridor_rl.pygame_ui.app import Control, PygameApplication
 
@@ -565,8 +701,6 @@ def test_playing_sidebar_exposes_complete_match_status() -> None:
     application.draw(surface)
 
     assert application.snapshot.status_lines == (
-        "当前行动方：player_0",
-        "剩余墙：player_0 10 · player_1 10",
         "已行动：0 手",
         "当前操作：移动",
         "对局开始：player_0 行动。",

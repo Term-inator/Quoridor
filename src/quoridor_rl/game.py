@@ -103,7 +103,10 @@ class Position:
 
     _pawns: tuple[Square, Square]
     _walls_remaining: tuple[int, int]
-    _placed_walls: frozenset[PlaceWall]
+    _placed_walls_by_player: tuple[
+        frozenset[PlaceWall],
+        frozenset[PlaceWall],
+    ]
     _to_move: Player | None
     _winner: Player | None
 
@@ -113,7 +116,7 @@ class Position:
         return cls._from_parts(
             pawns=(Square(8, 4), Square(0, 4)),
             walls_remaining=(10, 10),
-            placed_walls=frozenset(),
+            placed_walls_by_player=(frozenset(), frozenset()),
             to_move=Player.PLAYER_0,
             winner=None,
         )
@@ -124,14 +127,21 @@ class Position:
         *,
         pawns: tuple[Square, Square],
         walls_remaining: tuple[int, int],
-        placed_walls: frozenset[PlaceWall],
+        placed_walls_by_player: tuple[
+            frozenset[PlaceWall],
+            frozenset[PlaceWall],
+        ],
         to_move: Player | None,
         winner: Player | None,
     ) -> Self:
         position = object.__new__(cls)
         object.__setattr__(position, "_pawns", pawns)
         object.__setattr__(position, "_walls_remaining", walls_remaining)
-        object.__setattr__(position, "_placed_walls", placed_walls)
+        object.__setattr__(
+            position,
+            "_placed_walls_by_player",
+            placed_walls_by_player,
+        )
         object.__setattr__(position, "_to_move", to_move)
         object.__setattr__(position, "_winner", winner)
         return position
@@ -145,8 +155,10 @@ class Position:
         return self._walls_remaining
 
     @property
-    def placed_walls(self) -> frozenset[PlaceWall]:
-        return self._placed_walls
+    def placed_walls_by_player(
+        self,
+    ) -> tuple[frozenset[PlaceWall], frozenset[PlaceWall]]:
+        return self._placed_walls_by_player
 
     @property
     def to_move(self) -> Player | None:
@@ -176,7 +188,7 @@ class Position:
         return moves + tuple(walls)
 
     def _wall_conflicts(self, candidate: PlaceWall) -> bool:
-        for placed in self._placed_walls:
+        for placed in self._all_placed_walls():
             if candidate.orientation is placed.orientation:
                 if candidate.orientation is Orientation.HORIZONTAL:
                     if (
@@ -194,7 +206,7 @@ class Position:
         return False
 
     def _wall_preserves_paths(self, candidate: PlaceWall) -> bool:
-        walls = self._placed_walls | {candidate}
+        walls = self._all_placed_walls() | {candidate}
         return all(self._has_path(player, walls) for player in Player)
 
     def _has_path(
@@ -265,7 +277,13 @@ class Position:
         return tuple(sorted(targets))
 
     def _is_blocked(self, first: Square, second: Square) -> bool:
-        return _is_blocked_by(self._placed_walls, first, second)
+        return _is_blocked_by(self._all_placed_walls(), first, second)
+
+    def _all_placed_walls(self) -> frozenset[PlaceWall]:
+        return (
+            self._placed_walls_by_player[Player.PLAYER_0]
+            | self._placed_walls_by_player[Player.PLAYER_1]
+        )
 
     def play(self, action: Action) -> Self:
         if action not in self.legal_actions():
@@ -275,12 +293,14 @@ class Position:
 
         pawns = list(self._pawns)
         walls_remaining = list(self._walls_remaining)
-        placed_walls = self._placed_walls
+        placed_walls_by_player = list(self._placed_walls_by_player)
         if isinstance(action, MovePawn):
             pawns[current_player] = action.target
         else:
             walls_remaining[current_player] -= 1
-            placed_walls = placed_walls | {action}
+            placed_walls_by_player[current_player] = placed_walls_by_player[
+                current_player
+            ] | {action}
 
         goal_row = 0 if current_player is Player.PLAYER_0 else 8
         winner = (
@@ -292,7 +312,10 @@ class Position:
         return self._from_parts(
             pawns=(pawns[0], pawns[1]),
             walls_remaining=(walls_remaining[0], walls_remaining[1]),
-            placed_walls=placed_walls,
+            placed_walls_by_player=(
+                placed_walls_by_player[Player.PLAYER_0],
+                placed_walls_by_player[Player.PLAYER_1],
+            ),
             to_move=None if winner is not None else Player(1 - current_player),
             winner=winner,
         )

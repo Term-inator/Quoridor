@@ -6,7 +6,10 @@ from quoridor_rl.game import Orientation, Player, Position
 def render_ascii(position: Position) -> str:
     """Render an absolute-coordinate position as a human-readable board."""
     lines: list[str] = []
-    walls = position.placed_walls
+    walls = (
+        position.placed_walls_by_player[Player.PLAYER_0]
+        | position.placed_walls_by_player[Player.PLAYER_1]
+    )
 
     for row in range(9):
         cells: list[str] = []
