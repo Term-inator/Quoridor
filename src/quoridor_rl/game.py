@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Self, TypeAlias
+
+_BOARD_MASK = (1 << 81) - 1
+_RIGHT_COLUMN_MASK = sum(1 << (row * 9 + 8) for row in range(9))
+_GOAL_ROW_MASKS = ((1 << 9) - 1, ((1 << 9) - 1) << 72)
+BlockedEdges: TypeAlias = tuple[int, int]
 
 
 class Player(IntEnum):
@@ -176,14 +180,16 @@ class Position:
         if self._walls_remaining[self._to_move] == 0:
             return moves
 
+        placed_walls = self._all_placed_walls()
+        blocked_edges = _blocked_edges(placed_walls)
         walls: list[Action] = []
         for orientation in (Orientation.HORIZONTAL, Orientation.VERTICAL):
             for row in range(8):
                 for col in range(8):
                     candidate = PlaceWall(WallAnchor(row, col), orientation)
                     if not self._wall_conflicts(
-                        candidate
-                    ) and self._wall_preserves_paths(candidate):
+                        candidate, placed_walls
+                    ) and self._wall_preserves_paths(candidate, blocked_edges):
                         walls.append(candidate)
         return moves + tuple(walls)
 
@@ -193,8 +199,14 @@ class Position:
         assert distance is not None
         return distance
 
-    def _wall_conflicts(self, candidate: PlaceWall) -> bool:
-        for placed in self._all_placed_walls():
+    def _wall_conflicts(
+        self,
+        candidate: PlaceWall,
+        placed_walls: frozenset[PlaceWall] | None = None,
+    ) -> bool:
+        if placed_walls is None:
+            placed_walls = self._all_placed_walls()
+        for placed in placed_walls:
             if candidate.orientation is placed.orientation:
                 if candidate.orientation is Orientation.HORIZONTAL:
                     if (
@@ -211,9 +223,22 @@ class Position:
                 return True
         return False
 
-    def _wall_preserves_paths(self, candidate: PlaceWall) -> bool:
-        walls = self._all_placed_walls() | {candidate}
-        return all(self._has_path(player, walls) for player in Player)
+    def _wall_preserves_paths(
+        self,
+        candidate: PlaceWall,
+        blocked_edges: BlockedEdges | None = None,
+    ) -> bool:
+        if blocked_edges is None:
+            blocked_edges = _blocked_edges(self._all_placed_walls())
+        candidate_edges = _blocked_edges(frozenset((candidate,)))
+        combined_edges = (
+            blocked_edges[0] | candidate_edges[0],
+            blocked_edges[1] | candidate_edges[1],
+        )
+        return all(
+            self._shortest_path_length_through_edges(player, combined_edges) is not None
+            for player in Player
+        )
 
     def _has_path(
         self,
@@ -227,25 +252,30 @@ class Position:
         player: Player,
         walls: frozenset[PlaceWall],
     ) -> int | None:
-        goal_row = 0 if player is Player.PLAYER_0 else 8
-        frontier = deque([(self._pawns[player], 0)])
-        visited = {self._pawns[player]}
+        return self._shortest_path_length_through_edges(player, _blocked_edges(walls))
+
+    def _shortest_path_length_through_edges(
+        self,
+        player: Player,
+        blocked_edges: BlockedEdges,
+    ) -> int | None:
+        start = self._pawns[player].row * 9 + self._pawns[player].col
+        frontier = 1 << start
+        visited = frontier
+        goal = _GOAL_ROW_MASKS[player]
+        horizontal, vertical = blocked_edges
+        distance = 0
 
         while frontier:
-            square, distance = frontier.popleft()
-            if square.row == goal_row:
+            if frontier & goal:
                 return distance
-            for row_delta, col_delta in ((-1, 0), (0, -1), (0, 1), (1, 0)):
-                neighbor_row = square.row + row_delta
-                neighbor_col = square.col + col_delta
-                if not _coordinates_on_board(neighbor_row, neighbor_col):
-                    continue
-                neighbor = Square(neighbor_row, neighbor_col)
-                if neighbor not in visited and not _is_blocked_by(
-                    walls, square, neighbor
-                ):
-                    visited.add(neighbor)
-                    frontier.append((neighbor, distance + 1))
+            left = (frontier >> 1) & ~_RIGHT_COLUMN_MASK & ~vertical
+            right = ((frontier & ~_RIGHT_COLUMN_MASK & ~vertical) << 1) & _BOARD_MASK
+            up = (frontier >> 9) & ~horizontal
+            down = ((frontier & ~horizontal) << 9) & _BOARD_MASK
+            frontier = (left | right | up | down) & ~visited
+            visited |= frontier
+            distance += 1
 
         return None
 
@@ -299,9 +329,27 @@ class Position:
         )
 
     def play(self, action: Action) -> Self:
-        if action not in self.legal_actions():
-            raise IllegalActionError(action, self._illegal_action_reason(action))
-        assert self._to_move is not None
+        if self._to_move is None:
+            raise IllegalActionError(action, IllegalActionReason.GAME_OVER)
+        if isinstance(action, MovePawn):
+            if action.target not in self._legal_pawn_targets():
+                raise IllegalActionError(
+                    action,
+                    IllegalActionReason.ILLEGAL_PAWN_MOVE,
+                )
+        else:
+            if self._walls_remaining[self._to_move] == 0:
+                raise IllegalActionError(
+                    action,
+                    IllegalActionReason.NO_WALLS_REMAINING,
+                )
+            if self._wall_conflicts(action):
+                raise IllegalActionError(action, IllegalActionReason.WALL_CONFLICT)
+            if not self._wall_preserves_paths(action):
+                raise IllegalActionError(
+                    action,
+                    IllegalActionReason.WALL_BLOCKS_PATH,
+                )
         current_player = self._to_move
 
         pawns = list(self._pawns)
@@ -333,17 +381,6 @@ class Position:
             winner=winner,
         )
 
-    def _illegal_action_reason(self, action: Action) -> IllegalActionReason:
-        if self._to_move is None:
-            return IllegalActionReason.GAME_OVER
-        if isinstance(action, MovePawn):
-            return IllegalActionReason.ILLEGAL_PAWN_MOVE
-        if self._walls_remaining[self._to_move] == 0:
-            return IllegalActionReason.NO_WALLS_REMAINING
-        if self._wall_conflicts(action):
-            return IllegalActionReason.WALL_CONFLICT
-        return IllegalActionReason.WALL_BLOCKS_PATH
-
 
 def _coordinates_on_board(row: int, col: int) -> bool:
     return 0 <= row < 9 and 0 <= col < 9
@@ -354,21 +391,23 @@ def _is_blocked_by(
     first: Square,
     second: Square,
 ) -> bool:
-    if first.row != second.row:
-        anchor_row = min(first.row, second.row)
-        col = first.col
-        return any(
-            wall.orientation is Orientation.HORIZONTAL
-            and wall.anchor.row == anchor_row
-            and wall.anchor.col in (col - 1, col)
-            for wall in walls
-        )
+    first_id = first.row * 9 + first.col
+    second_id = second.row * 9 + second.col
+    horizontal, vertical = _blocked_edges(walls)
+    upper_or_left = min(first_id, second_id)
+    mask = horizontal if first.row != second.row else vertical
+    return bool(mask & (1 << upper_or_left))
 
-    anchor_col = min(first.col, second.col)
-    row = first.row
-    return any(
-        wall.orientation is Orientation.VERTICAL
-        and wall.anchor.col == anchor_col
-        and wall.anchor.row in (row - 1, row)
-        for wall in walls
-    )
+
+def _blocked_edges(walls: frozenset[PlaceWall]) -> BlockedEdges:
+    horizontal = 0
+    vertical = 0
+    for wall in walls:
+        row = wall.anchor.row
+        col = wall.anchor.col
+        upper_left = row * 9 + col
+        if wall.orientation is Orientation.HORIZONTAL:
+            horizontal |= (1 << upper_left) | (1 << (upper_left + 1))
+        else:
+            vertical |= (1 << upper_left) | (1 << (upper_left + 9))
+    return horizontal, vertical

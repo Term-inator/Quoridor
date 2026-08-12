@@ -13,3 +13,4 @@ build/
 *.egg-info/
 experiments/ppo/artifacts/
 experiments/dqn/artifacts/
+experiments/alphazero/artifacts/

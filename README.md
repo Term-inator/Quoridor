@@ -130,6 +130,20 @@ uv run --group train python -m experiments.dqn.train --device cuda
 
 可提交结果写入 `experiments/dqn/results/seed-0/`，checkpoint、TensorBoard 日志和 smoke 产物写入 Git 忽略的 `experiments/dqn/artifacts/`。
 
+## 本地 AlphaZero 学习验证
+
+第三条 single-seed 探索使用共享策略价值网络和固定模拟次数的 PUCT MCTS。它从随机网络开始，以 MCTS 根访问次数作为策略目标、正常终局胜负作为价值目标；未决对局不进入 replay，也不使用 PPO/DQN 的逐步奖励塑形。
+
+```bash
+# 搜索、自博弈、更新、checkpoint 与短评测 smoke gate
+uv run --group train python -m experiments.alphazero.train --smoke --device cpu
+
+# seed 0，最长训练 120 分钟，总流程不超过 150 分钟
+uv run --group train python -m experiments.alphazero.train --device cpu
+```
+
+训练每步执行 32 次 MCTS simulation，评测每步固定执行 8 次并在 CPU 上并行四局；每节点保留全部棋子动作和网络先验最高的墙动作，总候选上限为 16。前 32 盘通过 pawn-only curriculum 建立终局信号，课程结束后恢复完整动作并移除进展先验。自博弈根节点加入探索噪声，正式评测关闭噪声并确定性选择访问次数最多的动作。可提交结果写入 `experiments/alphazero/results/seed-0/`，大型训练产物写入被 Git 忽略的 `experiments/alphazero/artifacts/`。
+
 ## 在终端游玩
 
 ```bash

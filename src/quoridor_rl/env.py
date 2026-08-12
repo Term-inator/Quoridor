@@ -10,8 +10,8 @@ from pettingzoo import AECEnv
 from pettingzoo.utils import AgentSelector
 from pettingzoo.utils.wrappers import OrderEnforcingWrapper
 
-from quoridor_rl.codec import ActionCodec
-from quoridor_rl.game import IllegalActionError, Orientation, Player, Position, Square
+from quoridor_rl.codec import ActionCodec, ObservationCodec
+from quoridor_rl.game import IllegalActionError, Player, Position
 from quoridor_rl.render import render_ascii
 
 Agent = str
@@ -68,6 +68,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
             for agent in self.possible_agents
         }
         self._codec = ActionCodec()
+        self._observation_codec = ObservationCodec()
         self._position = Position.initial()
         self.plies = 0
         self.agents: list[Agent] = []
@@ -109,24 +110,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
 
     def observe(self, agent: Agent) -> Observation:
         player = _player_for(agent)
-        opponent = Player(1 - player)
-        observation = np.zeros((6, 9, 9), dtype=np.float32)
-
-        own_row, own_col = _square_in_view(self.position.pawns[player], player)
-        opponent_row, opponent_col = _square_in_view(
-            self.position.pawns[opponent], player
-        )
-        observation[0, own_row, own_col] = 1.0
-        observation[1, opponent_row, opponent_col] = 1.0
-
-        for player_walls in self.position.placed_walls_by_player:
-            for wall in player_walls:
-                row, col = _anchor_in_view(wall.anchor.row, wall.anchor.col, player)
-                plane = 2 if wall.orientation is Orientation.HORIZONTAL else 3
-                observation[plane, row, col] = 1.0
-
-        observation[4].fill(self.position.walls_remaining[player] / 10.0)
-        observation[5].fill(self.position.walls_remaining[opponent] / 10.0)
+        observation = self._observation_codec.encode(self.position, player)
 
         action_mask = np.zeros(ActionCodec.action_count, dtype=np.int8)
         if (
@@ -199,15 +183,3 @@ def _player_for(agent: Agent) -> Player:
     if agent == "player_1":
         return Player.PLAYER_1
     raise ValueError(f"unknown agent: {agent!r}")
-
-
-def _square_in_view(square: Square, player: Player) -> tuple[int, int]:
-    if player is Player.PLAYER_0:
-        return square.row, square.col
-    return 8 - square.row, 8 - square.col
-
-
-def _anchor_in_view(row: int, col: int, player: Player) -> tuple[int, int]:
-    if player is Player.PLAYER_0:
-        return row, col
-    return 7 - row, 7 - col

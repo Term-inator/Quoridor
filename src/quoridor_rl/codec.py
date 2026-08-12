@@ -1,6 +1,8 @@
-"""Numeric action encoding for reinforcement-learning adapters."""
+"""Numeric action and observation encoding for reinforcement-learning adapters."""
 
 from operator import index
+
+import numpy as np
 
 from quoridor_rl.game import (
     Action,
@@ -8,6 +10,7 @@ from quoridor_rl.game import (
     Orientation,
     PlaceWall,
     Player,
+    Position,
     Square,
     WallAnchor,
 )
@@ -55,6 +58,32 @@ class ActionCodec:
         if player is Player.PLAYER_1:
             row, col = 7 - row, 7 - col
         return PlaceWall(WallAnchor(row, col), orientation)
+
+
+class ObservationCodec:
+    """Encode a rule position from one player's canonical perspective."""
+
+    shape = (6, 9, 9)
+
+    def encode(self, position: Position, player: Player) -> np.ndarray:
+        """Return the canonical six-plane observation for ``player``."""
+        opponent = Player(1 - player)
+        observation = np.zeros(self.shape, dtype=np.float32)
+
+        own_row, own_col = _square_in_view(position.pawns[player], player)
+        opponent_row, opponent_col = _square_in_view(position.pawns[opponent], player)
+        observation[0, own_row, own_col] = 1.0
+        observation[1, opponent_row, opponent_col] = 1.0
+
+        for player_walls in position.placed_walls_by_player:
+            for wall in player_walls:
+                row, col = _anchor_in_view(wall.anchor, player)
+                plane = 2 if wall.orientation is Orientation.HORIZONTAL else 3
+                observation[plane, row, col] = 1.0
+
+        observation[4].fill(position.walls_remaining[player] / 10.0)
+        observation[5].fill(position.walls_remaining[opponent] / 10.0)
+        return observation
 
 
 def _square_in_view(square: Square, player: Player) -> tuple[int, int]:

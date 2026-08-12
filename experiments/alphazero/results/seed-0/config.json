@@ -1,0 +1,22 @@
+{
+  "batch_size": 256,
+  "c_puct": 1.5,
+  "curriculum_progress_prior": 0.75,
+  "dirichlet_alpha": 0.03,
+  "evaluation_simulations": 8,
+  "evaluation_workers": 4,
+  "learning_rate": 0.001,
+  "max_gradient_norm": 5.0,
+  "max_plies": 512,
+  "maximum_search_actions": 16,
+  "pawn_only_curriculum_games": 32,
+  "replay_capacity": 50000,
+  "replay_warmup": 256,
+  "root_noise_fraction": 0.25,
+  "seed": 0,
+  "simulations_per_move": 32,
+  "temperature_plies": 30,
+  "torch_threads": 4,
+  "updates_per_game": 8,
+  "weight_decay": 0.0001
+}
