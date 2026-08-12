@@ -1,0 +1,20 @@
+{
+  "batch_size": 512,
+  "collection_size": 256,
+  "environment_count": 4,
+  "epsilon_decay_transitions": 200000,
+  "epsilon_end": 0.05,
+  "epsilon_start": 1.0,
+  "gamma": 0.99,
+  "learning_rate": 0.0001,
+  "max_gradient_norm": 10.0,
+  "max_plies": 512,
+  "opponent_pool_capacity": 8,
+  "opponent_snapshot_interval": 50000,
+  "random_opponent_probability": 0.2,
+  "replay_capacity": 200000,
+  "replay_warmup": 10000,
+  "seed": 0,
+  "target_sync_interval": 5000,
+  "update_interval": 4
+}

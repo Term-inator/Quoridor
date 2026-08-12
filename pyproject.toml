@@ -44,6 +44,8 @@ module = [
     "pettingzoo.*",
     "tensordict",
     "tensordict.*",
+    "tensorboard",
+    "tensorboard.*",
     "torchrl",
     "torchrl.*",
 ]

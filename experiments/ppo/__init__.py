@@ -1,5 +1,5 @@
 """Single-seed masked PPO learning validation."""
 
-from experiments.ppo.reward import PotentialRewardWrapper
+from experiments.reward import PotentialRewardWrapper
 
 __all__ = ["PotentialRewardWrapper"]

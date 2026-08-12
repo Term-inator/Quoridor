@@ -1,0 +1,59 @@
+{
+  "final_evaluation": null,
+  "hardware": {
+    "cuda": "13.0",
+    "cuda_available": true,
+    "device": "cuda",
+    "git_commit": "9834d76da54d4245a1b5d0b98f55045e0db593a3",
+    "git_dirty": true,
+    "gpu": "NVIDIA GeForce RTX 5070 Ti",
+    "numpy": "2.5.2",
+    "nvidia_driver": "610.57.04",
+    "pettingzoo": "1.26.1",
+    "python": "3.14.6",
+    "torch": "2.13.0+cu130",
+    "torchrl": "0.13.3"
+  },
+  "history": [
+    {
+      "training_seconds": 901.9985436243587,
+      "transitions": 66964,
+      "updates": 14242,
+      "validation_games": 200,
+      "validation_illegal_actions": 0,
+      "validation_truncation_rate": 0.3499999940395355,
+      "validation_win_rate": 0.19499999284744263
+    },
+    {
+      "training_seconds": 1803.6121439365088,
+      "transitions": 130541,
+      "updates": 30136,
+      "validation_games": 200,
+      "validation_illegal_actions": 0,
+      "validation_truncation_rate": 0.44999998807907104,
+      "validation_win_rate": 0.029999999329447746
+    },
+    {
+      "training_seconds": 3602.640127501276,
+      "transitions": 265320,
+      "updates": 63831,
+      "validation_games": 200,
+      "validation_illegal_actions": 0,
+      "validation_truncation_rate": 0.2849999964237213,
+      "validation_win_rate": 0.0
+    },
+    {
+      "epsilon": 0.05000000074505806,
+      "opponent_pool_size": 6,
+      "replay_size": 200000,
+      "training_seconds": 4539.903523049143,
+      "transitions": 301446,
+      "updates": 72862
+    }
+  ],
+  "recovered_from_tensorboard": true,
+  "selected_checkpoint": "checkpoint-015m.pt",
+  "status": "user-stopped",
+  "stop_reason": "operator stopped after the 60-minute validation",
+  "total_elapsed_seconds": 5118.086195364243
+}

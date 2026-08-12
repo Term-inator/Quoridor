@@ -1,4 +1,4 @@
-"""Training-only potential reward for the Quoridor AEC environment."""
+"""Training-only potential reward shared by local learning experiments."""
 
 from __future__ import annotations
 

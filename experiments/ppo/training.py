@@ -17,7 +17,7 @@ from torchrl.objectives import ClipPPOLoss
 from torchrl.objectives.value import GAE
 
 from experiments.ppo.model import MaskedActorCritic
-from experiments.ppo.reward import PotentialRewardWrapper
+from experiments.reward import PotentialRewardWrapper
 from quoridor_rl import env
 
 AGENTS = ("player_0", "player_1")

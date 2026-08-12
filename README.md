@@ -102,7 +102,7 @@ assert position.shortest_path_length(Player.PLAYER_0) == 8
 
 ## 本地 PPO 学习验证
 
-仓库包含一个不会进入发行 wheel 的探索性 masked PPO 自博弈实验，用于在发布前验证 observation、action mask 和奖励信号是否能够产生学习。基础环境仍保持稀疏的终局零和奖励；dense potential reward 只存在于 `experiments/ppo/` 的训练 wrapper 中。
+仓库包含一个不会进入发行 wheel 的探索性 masked PPO 自博弈实验，用于在发布前验证 observation、action mask 和奖励信号是否能够产生学习。基础环境仍保持稀疏的终局零和奖励；dense potential reward 只存在于本地实验共用的训练 wrapper 中。
 
 ```bash
 uv sync --group train
@@ -115,6 +115,20 @@ uv run --group train python -m experiments.ppo.train --device cuda
 ```
 
 正式实验在 15、30、60、120 分钟进行 200 局先后手均衡验证，并用最佳 checkpoint 对随机智能体评估 1,000 局。可提交的指标、摘要和曲线写入 `experiments/ppo/results/seed-0/`；checkpoint 与 TensorBoard 日志写入被 Git 忽略的 `experiments/ppo/artifacts/seed-0/`。单 seed 达标只是继续多 seed 验证的依据，不构成 PyPI 发布结论。
+
+## 本地 Masked Double DQN 学习验证
+
+仓库还包含一个与 PPO 平行的 Masked Double DQN 单 seed 实验。在线网络每局随机控制一个玩家身份，只将自己的决策写入 uniform replay，并与随机智能体或最近的冻结策略快照对弈。该实验沿用 PPO 的 observation、合法动作 mask、CNN 容量、potential reward、两小时训练预算和随机智能体评估协议；两个结果只作简单并列观察，不构成算法优劣结论。
+
+```bash
+# CUDA smoke gate
+uv run --group train python -m experiments.dqn.train --smoke --device cuda
+
+# seed 0，最长训练 120 分钟，总流程不超过 150 分钟
+uv run --group train python -m experiments.dqn.train --device cuda
+```
+
+可提交结果写入 `experiments/dqn/results/seed-0/`，checkpoint、TensorBoard 日志和 smoke 产物写入 Git 忽略的 `experiments/dqn/artifacts/`。
 
 ## 在终端游玩
 

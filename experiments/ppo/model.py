@@ -6,21 +6,15 @@ import torch
 from torch import nn
 from torch.distributions import Categorical
 
+from experiments.model import board_encoder
+
 
 class MaskedActorCritic(nn.Module):
     """A compact shared CNN with policy and value heads."""
 
     def __init__(self, action_count: int = 209) -> None:
         super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(6, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.Flatten(),
-            nn.Linear(64 * 9 * 9, 256),
-            nn.ReLU(),
-        )
+        self.features = board_encoder()
         self.policy_head = nn.Linear(256, action_count)
         self.value_head = nn.Linear(256, 1)
 

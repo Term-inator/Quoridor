@@ -5,8 +5,8 @@ import torch
 from experiments.ppo.evaluation import evaluate
 from experiments.ppo.experiment import run_smoke
 from experiments.ppo.model import MaskedActorCritic
-from experiments.ppo.reward import PotentialRewardWrapper
 from experiments.ppo.training import PPOConfig, PPOUpdater, collect_rollout
+from experiments.reward import PotentialRewardWrapper
 from quoridor_rl.codec import ActionCodec
 from quoridor_rl.env import env
 from quoridor_rl.game import MovePawn, Player, Square
