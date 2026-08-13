@@ -16,16 +16,22 @@ from pettingzoo.utils.wrappers import OrderEnforcingWrapper
 
 from quoridor_rl.codec import ActionCodec, ObservationCodec
 from quoridor_rl.game import IllegalActionError, Player, Position
+from quoridor_rl.language import Language
 from quoridor_rl.render import render_ascii
 
 Agent = str
 Observation = dict[str, np.ndarray]
 
 
-def env(*, max_plies: int = 512, render_mode: str | None = None) -> AECEnv:
+def env(
+    *,
+    max_plies: int = 512,
+    render_mode: str | None = None,
+    language: Language = Language.CHINESE,
+) -> AECEnv:
     """创建带行动顺序检查包装器的公共 PettingZoo AEC 环境。"""
     return OrderEnforcingWrapper(
-        QuoridorEnv(max_plies=max_plies, render_mode=render_mode)
+        QuoridorEnv(max_plies=max_plies, render_mode=render_mode, language=language)
     )
 
 
@@ -43,6 +49,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         *,
         max_plies: int = 512,
         render_mode: str | None = None,
+        language: Language = Language.CHINESE,
     ) -> None:
         """配置回合上限和渲染模式，并声明固定的动作/观测空间。"""
         super().__init__()
@@ -50,9 +57,12 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
             raise ValueError("max_plies must be positive")
         if render_mode not in (None, "ansi"):
             raise ValueError("render_mode must be None or 'ansi'")
+        if not isinstance(language, Language):
+            raise TypeError("language must be a Language value")
 
         self.max_plies = max_plies
         self.render_mode = render_mode
+        self.language = language
         self.possible_agents = ["player_0", "player_1"]
         self.action_spaces: dict[Agent, spaces.Discrete] = {
             agent: spaces.Discrete(ActionCodec.action_count)
@@ -193,7 +203,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         """在 ``ansi`` 模式下返回文本棋盘，否则不产生渲染结果。"""
         if self.render_mode != "ansi":
             return None
-        return render_ascii(self.position)
+        return render_ascii(self.position, language=self.language)
 
 
 def _player_for(agent: Agent) -> Player:

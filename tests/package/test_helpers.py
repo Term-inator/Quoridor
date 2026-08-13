@@ -1,3 +1,6 @@
+import pytest
+
+from quoridor_rl import Language
 from quoridor_rl.agents import RandomAgent
 from quoridor_rl.env import env
 from quoridor_rl.game import Orientation, PlaceWall, Position, WallAnchor
@@ -36,3 +39,26 @@ def test_ansi_environment_render_returns_the_shared_board() -> None:
 
     assert isinstance(rendered, str)
     assert "玩家 1 = 10，玩家 2 = 10" in rendered
+
+
+def test_ascii_renderer_and_environment_support_english() -> None:
+    position = Position.initial()
+
+    assert "Walls: player_0 = 10, player_1 = 10" in render_ascii(
+        position,
+        language=Language.ENGLISH,
+    )
+
+    environment = env(render_mode="ansi", language=Language.ENGLISH)
+    environment.reset()
+
+    assert environment.render() is not None
+    assert "Walls: player_0 = 10, player_1 = 10" in environment.render()
+
+
+def test_text_interfaces_reject_unknown_language_values() -> None:
+    with pytest.raises(TypeError, match="Language"):
+        render_ascii(Position.initial(), language="fr")  # type: ignore[arg-type]
+
+    with pytest.raises(TypeError, match="Language"):
+        env(language="fr")  # type: ignore[arg-type]

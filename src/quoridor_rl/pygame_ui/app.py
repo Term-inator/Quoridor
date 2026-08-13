@@ -30,6 +30,7 @@ from quoridor_rl.game import (
     Square,
     WallAnchor,
 )
+from quoridor_rl.language import Language
 
 WINDOW_INITIAL = (1280, 800)
 WINDOW_MIN = (960, 640)
@@ -52,12 +53,157 @@ COLORS = {
     "white": pygame.Color("#ffffff"),
 }
 
-REASON_TEXT = {
-    IllegalActionReason.GAME_OVER: "对局已经结束",
-    IllegalActionReason.ILLEGAL_PAWN_MOVE: "棋子不能移动到该格",
-    IllegalActionReason.NO_WALLS_REMAINING: "当前行动方已经没有墙",
-    IllegalActionReason.WALL_CONFLICT: "与已有墙重叠或交叉",
-    IllegalActionReason.WALL_BLOCKS_PATH: "会堵死至少一方的所有路径",
+PYGAME_TEXT = {
+    Language.CHINESE: {
+        "window_title": "围墙棋",
+        "start_prompt": "请选择对局模式并开始。",
+        "paused": "已暂停。",
+        "resumed": "已继续自动播放。",
+        "selected_human_human": "已选择：人类 vs 人类。",
+        "selected_human_random": "已选择：人类 vs 随机智能体。",
+        "selected_random_random": "已选择：随机智能体 vs 随机智能体。",
+        "human_first": "人类控制先手 player_0。",
+        "human_second": "人类控制后手 player_1。",
+        "seed_help": "输入整数随机种子，留空则每局不同。",
+        "seed_error": "随机种子必须是整数或留空。",
+        "game_started": "对局开始：player_0 行动。",
+        "speed_slow": "慢速",
+        "speed_normal": "正常",
+        "speed_fast": "快速",
+        "speed_feedback": "智能体速度：{speed}。",
+        "history_status": "历史回放：第 {ply} / {plies} 手",
+        "history_hint": "滚轮浏览，点击记录切换局面。",
+        "mode_move": "移动",
+        "mode_horizontal_wall": "横墙",
+        "mode_vertical_wall": "竖墙",
+        "plies": "已行动：{plies} 手",
+        "current_operation": "当前操作：{mode}",
+        "agent_error": "智能体运行失败：{error}",
+        "illegal_agent": "{player} 提交非法动作，{winner} 获胜。",
+        "illegal_human": "未执行：{reason}。回合没有推进。",
+        "moved": "已移动：{target}。下一回合已回到移动模式。",
+        "horizontal_wall": "横墙",
+        "vertical_wall": "竖墙",
+        "placed_wall": "已放置{wall}：{anchor}。下一回合已回到移动模式。",
+        "winner": "{player} 获胜。",
+        "limit": "达到 {max_plies} 手行动上限，本局未决。",
+        "title": "围墙棋",
+        "subtitle": "选择本地对局模式",
+        "human_human": "人类 vs 人类",
+        "human_random": "人类 vs 随机",
+        "random_random": "随机 vs 随机",
+        "human_first_label": "人类先手",
+        "human_second_label": "人类后手",
+        "seed_placeholder": "随机种子（可留空）",
+        "slow_label": "慢速",
+        "normal_label": "正常",
+        "fast_label": "快速",
+        "start_game": "开始对局",
+        "return_result": "返回结果",
+        "active": "行动中",
+        "remaining": "剩余",
+        "history_heading": "行动记录（最新在上）",
+        "resume": "继续",
+        "pause": "暂停",
+        "step": "单步",
+        "slow_short": "慢",
+        "normal_short": "正常",
+        "fast_short": "快",
+        "game_aborted": "对局中止",
+        "game_over": "对局结束",
+        "view_history": "查看回放",
+        "restart": "再来一局",
+        "return_start": "返回开始",
+        "exit": "退出",
+        "history_initial": "0. 初始局面",
+        "history_move": "{ply}. {player} 移动 {start} → {target}",
+        "history_wall": "{ply}. {player} 放置{wall} {anchor}",
+        "reason_game_over": "对局已经结束",
+        "reason_illegal_pawn_move": "棋子不能移动到该格",
+        "reason_no_walls_remaining": "当前行动方已经没有墙",
+        "reason_wall_conflict": "与已有墙重叠或交叉",
+        "reason_wall_blocks_path": "会堵死至少一方的所有路径",
+    },
+    Language.ENGLISH: {
+        "window_title": "Quoridor",
+        "start_prompt": "Choose a game mode to begin.",
+        "paused": "Paused.",
+        "resumed": "Automatic playback resumed.",
+        "selected_human_human": "Selected: Human vs Human.",
+        "selected_human_random": "Selected: Human vs Random Agent.",
+        "selected_random_random": "Selected: Random Agent vs Random Agent.",
+        "human_first": "Human controls the first player, player_0.",
+        "human_second": "Human controls the second player, player_1.",
+        "seed_help": "Enter an integer seed, or leave blank for a different game.",
+        "seed_error": "The random seed must be an integer or blank.",
+        "game_started": "Game started: player_0 to move.",
+        "speed_slow": "Slow",
+        "speed_normal": "Normal",
+        "speed_fast": "Fast",
+        "speed_feedback": "Agent speed: {speed}.",
+        "history_status": "History: ply {ply} / {plies}",
+        "history_hint": "Scroll to browse; click an entry to view it.",
+        "mode_move": "Move",
+        "mode_horizontal_wall": "Horizontal",
+        "mode_vertical_wall": "Vertical",
+        "plies": "Plies: {plies}",
+        "current_operation": "Action: {mode}",
+        "agent_error": "Agent failed: {error}",
+        "illegal_agent": "{player} submitted an illegal action; {winner} wins.",
+        "illegal_human": "Not played: {reason}. The turn did not advance.",
+        "moved": "Moved to {target}. Move mode restored for the next turn.",
+        "horizontal_wall": "horizontal wall",
+        "vertical_wall": "vertical wall",
+        "placed_wall": "Placed {wall} at {anchor}. Move mode restored for the next turn.",
+        "winner": "{player} wins.",
+        "limit": "Reached the {max_plies}-ply limit; game undecided.",
+        "title": "Quoridor",
+        "subtitle": "Choose a local game mode",
+        "human_human": "Human vs Human",
+        "human_random": "Human vs Random",
+        "random_random": "Random vs Random",
+        "human_first_label": "Human First",
+        "human_second_label": "Human Second",
+        "seed_placeholder": "Random seed (optional)",
+        "slow_label": "Slow",
+        "normal_label": "Normal",
+        "fast_label": "Fast",
+        "start_game": "Start Game",
+        "return_result": "Back to Result",
+        "active": "Active",
+        "remaining": "Walls",
+        "history_heading": "Move history (newest first)",
+        "resume": "Resume",
+        "pause": "Pause",
+        "step": "Step",
+        "slow_short": "Slow",
+        "normal_short": "Normal",
+        "fast_short": "Fast",
+        "game_aborted": "Game Aborted",
+        "game_over": "Game Over",
+        "view_history": "View History",
+        "restart": "Play Again",
+        "return_start": "Start Screen",
+        "exit": "Exit",
+        "history_initial": "0. Initial position",
+        "history_move": "{ply}. {player} moved {start} → {target}",
+        "history_wall": "{ply}. {player} placed {wall} at {anchor}",
+        "reason_game_over": "the game has already ended",
+        "reason_illegal_pawn_move": "the pawn cannot move to that square",
+        "reason_no_walls_remaining": "the current player has no walls remaining",
+        "reason_wall_conflict": "the wall overlaps or crosses an existing wall",
+        "reason_wall_blocks_path": "the wall would block every path for a player",
+    },
+}
+
+assert PYGAME_TEXT[Language.CHINESE].keys() == PYGAME_TEXT[Language.ENGLISH].keys()
+
+REASON_KEYS = {
+    IllegalActionReason.GAME_OVER: "reason_game_over",
+    IllegalActionReason.ILLEGAL_PAWN_MOVE: "reason_illegal_pawn_move",
+    IllegalActionReason.NO_WALLS_REMAINING: "reason_no_walls_remaining",
+    IllegalActionReason.WALL_CONFLICT: "reason_wall_conflict",
+    IllegalActionReason.WALL_BLOCKS_PATH: "reason_wall_blocks_path",
 }
 
 
@@ -101,6 +247,8 @@ class Control(Enum):
     SPEED_FAST = "speed_fast"
     VIEW_HISTORY = "view_history"
     RETURN_TO_RESULT = "return_to_result"
+    LANGUAGE_CHINESE = "language_chinese"
+    LANGUAGE_ENGLISH = "language_english"
 
 
 class InputMode(Enum):
@@ -148,6 +296,8 @@ class ApplicationSnapshot:
     reviewing_history: bool
     reviewed_ply: int | None
     displayed_position: Position | None
+    language: Language
+    window_title: str
 
 
 class ActionChoosingAgent(Protocol):
@@ -235,11 +385,15 @@ class PygameApplication:
         *,
         agent_factory: Callable[[int | None], ActionChoosingAgent] = RandomAgent,
         max_plies: int = 512,
+        language: Language = Language.CHINESE,
     ) -> None:
         """加载字体资源并初始化尚未开始对局的应用状态。"""
         if max_plies <= 0:
             raise ValueError("max_plies must be positive")
+        if not isinstance(language, Language):
+            raise TypeError("language must be a Language value")
         pygame.font.init()
+        self._language = language
         self._max_plies = max_plies
         self._font_resource = "NotoSansSC-Regular.otf"
         self._font_bytes = (
@@ -248,7 +402,7 @@ class PygameApplication:
             .read_bytes()
         )
         self._screen = ApplicationScreen.START
-        self._feedback = "请选择对局模式并开始。"
+        self._feedback = self._text("start_prompt")
         self._position: Position | None = None
         self._legal_actions: tuple[Action, ...] = ()
         self._preview_reason_cache: dict[PlaceWall, IllegalActionReason] = {}
@@ -313,7 +467,13 @@ class PygameApplication:
             reviewing_history=self._reviewing_history,
             reviewed_ply=self._reviewed_ply,
             displayed_position=self._displayed_position(),
+            language=self._language,
+            window_title=self._text("window_title"),
         )
+
+    def _text(self, key: str, **values: object) -> str:
+        """Return one localized Pygame message."""
+        return PYGAME_TEXT[self._language][key].format(**values)
 
     def control_rect(self, control: Control) -> pygame.Rect:
         """返回语义控件当前可见矩形的副本。"""
@@ -386,7 +546,7 @@ class PygameApplication:
             and self._screen is ApplicationScreen.PLAYING
         ):
             self._paused = not self._paused
-            self._feedback = "已暂停。" if self._paused else "已继续自动播放。"
+            self._feedback = self._text("paused" if self._paused else "resumed")
         elif (
             event.type == pygame.KEYDOWN
             and event.key == pygame.K_RIGHT
@@ -429,35 +589,43 @@ class PygameApplication:
         if self._screen is ApplicationScreen.START:
             self._seed_focused = False
             if self._controls.get(
+                Control.LANGUAGE_CHINESE, pygame.Rect(0, 0, 0, 0)
+            ).collidepoint(point):
+                self._set_language(Language.CHINESE)
+            elif self._controls.get(
+                Control.LANGUAGE_ENGLISH, pygame.Rect(0, 0, 0, 0)
+            ).collidepoint(point):
+                self._set_language(Language.ENGLISH)
+            elif self._controls.get(
                 Control.MODE_HUMAN_HUMAN, pygame.Rect(0, 0, 0, 0)
             ).collidepoint(point):
                 self._selected_game_mode = GameMode.HUMAN_HUMAN
-                self._feedback = "已选择：人类 vs 人类。"
+                self._feedback = self._text("selected_human_human")
             elif self._controls.get(
                 Control.MODE_HUMAN_RANDOM, pygame.Rect(0, 0, 0, 0)
             ).collidepoint(point):
                 self._selected_game_mode = GameMode.HUMAN_RANDOM
-                self._feedback = "已选择：人类 vs 随机智能体。"
+                self._feedback = self._text("selected_human_random")
             elif self._controls.get(
                 Control.MODE_RANDOM_RANDOM, pygame.Rect(0, 0, 0, 0)
             ).collidepoint(point):
                 self._selected_game_mode = GameMode.RANDOM_RANDOM
-                self._feedback = "已选择：随机智能体 vs 随机智能体。"
+                self._feedback = self._text("selected_random_random")
             elif self._controls.get(
                 Control.HUMAN_PLAYER_0, pygame.Rect(0, 0, 0, 0)
             ).collidepoint(point):
                 self._human_player = Player.PLAYER_0
-                self._feedback = "人类控制先手 player_0。"
+                self._feedback = self._text("human_first")
             elif self._controls.get(
                 Control.HUMAN_PLAYER_1, pygame.Rect(0, 0, 0, 0)
             ).collidepoint(point):
                 self._human_player = Player.PLAYER_1
-                self._feedback = "人类控制后手 player_1。"
+                self._feedback = self._text("human_second")
             elif self._controls.get(
                 Control.SEED_INPUT, pygame.Rect(0, 0, 0, 0)
             ).collidepoint(point):
                 self._seed_focused = True
-                self._feedback = "输入整数随机种子，留空则每局不同。"
+                self._feedback = self._text("seed_help")
             elif self._speed_control_at(point) is not None:
                 self._set_speed(self._speed_control_at(point))
             elif (
@@ -469,7 +637,7 @@ class PygameApplication:
                 try:
                     self._seed = int(self._seed_text) if self._seed_text else None
                 except ValueError:
-                    self._feedback = "随机种子必须是整数或留空。"
+                    self._feedback = self._text("seed_error")
                 else:
                     self._start_game()
             return
@@ -509,7 +677,7 @@ class PygameApplication:
                 self._reviewing_history = False
                 self._reviewed_ply = None
                 self._history_scroll_rows = 0
-                self._feedback = "请选择对局模式并开始。"
+                self._feedback = self._text("start_prompt")
                 return
             exit_button = self._controls.get(Control.EXIT)
             if exit_button is not None and exit_button.collidepoint(point):
@@ -520,7 +688,7 @@ class PygameApplication:
             pause = self._controls.get(Control.PAUSE_RESUME)
             if pause is not None and pause.collidepoint(point):
                 self._paused = not self._paused
-                self._feedback = "已暂停。" if self._paused else "已继续自动播放。"
+                self._feedback = self._text("paused" if self._paused else "resumed")
                 return
             step = self._controls.get(Control.STEP)
             if step is not None and step.collidepoint(point):
@@ -601,7 +769,12 @@ class PygameApplication:
                 Player.PLAYER_0: self._agent_factory(seeds[0]),
                 Player.PLAYER_1: self._agent_factory(seeds[1]),
             }
-        self._feedback = "对局开始：player_0 行动。"
+        self._feedback = self._text("game_started")
+
+    def _set_language(self, language: Language) -> None:
+        """Switch the start screen language without changing game settings."""
+        self._language = language
+        self._feedback = self._text("start_prompt")
 
     def _agent_seeds(self) -> tuple[int | None, int | None]:
         """从局级种子稳定派生两个互不相同的智能体种子。"""
@@ -634,15 +807,18 @@ class PygameApplication:
     def _set_speed(self, control: Control | None) -> None:
         """设置自动智能体的行动间隔并重置当前计时。"""
         speeds = {
-            Control.SPEED_SLOW: (1000, "慢速"),
-            Control.SPEED_NORMAL: (500, "正常"),
-            Control.SPEED_FAST: (200, "快速"),
+            Control.SPEED_SLOW: (1000, "speed_slow"),
+            Control.SPEED_NORMAL: (500, "speed_normal"),
+            Control.SPEED_FAST: (200, "speed_fast"),
         }
         if control not in speeds:
             return
-        self._agent_delay_ms, label = speeds[control]
+        self._agent_delay_ms, label_key = speeds[control]
         self._agent_elapsed_ms = 0
-        self._feedback = f"智能体速度：{label}。"
+        self._feedback = self._text(
+            "speed_feedback",
+            speed=self._text(label_key),
+        )
 
     def _is_agent_turn(self) -> bool:
         """判断当前行动玩家是否由已注册智能体控制。"""
@@ -660,18 +836,18 @@ class PygameApplication:
             entry = self._reviewed_history_entry()
             assert entry is not None
             return (
-                f"历史回放：第 {entry.ply} / {self._plies} 手",
-                _action_history_text(entry),
-                "滚轮浏览，点击记录切换局面。",
+                self._text("history_status", ply=entry.ply, plies=self._plies),
+                _action_history_text(entry, language=self._language),
+                self._text("history_hint"),
             )
         input_labels = {
-            InputMode.MOVE: "移动",
-            InputMode.HORIZONTAL_WALL: "横墙",
-            InputMode.VERTICAL_WALL: "竖墙",
+            InputMode.MOVE: self._text("mode_move"),
+            InputMode.HORIZONTAL_WALL: self._text("mode_horizontal_wall"),
+            InputMode.VERTICAL_WALL: self._text("mode_vertical_wall"),
         }
         return (
-            f"已行动：{self._plies} 手",
-            f"当前操作：{input_labels[self._input_mode]}",
+            self._text("plies", plies=self._plies),
+            self._text("current_operation", mode=input_labels[self._input_mode]),
             self._feedback,
         )
 
@@ -715,7 +891,7 @@ class PygameApplication:
         except Exception as error:  # noqa: BLE001 - isolate participant failures
             self._screen = ApplicationScreen.ERROR
             self._result_winner = None
-            self._feedback = f"智能体运行失败：{error}"
+            self._feedback = self._text("agent_error", error=error)
             return
         self._attempt_action(
             action,
@@ -728,11 +904,14 @@ class PygameApplication:
         self._preview_wall = None
         self._preview_reason = None
         labels = {
-            InputMode.MOVE: "移动",
-            InputMode.HORIZONTAL_WALL: "横墙",
-            InputMode.VERTICAL_WALL: "竖墙",
+            InputMode.MOVE: self._text("mode_move"),
+            InputMode.HORIZONTAL_WALL: self._text("mode_horizontal_wall"),
+            InputMode.VERTICAL_WALL: self._text("mode_vertical_wall"),
         }
-        self._feedback = f"当前操作：{labels[mode]}。"
+        punctuation = "。" if self._language is Language.CHINESE else "."
+        self._feedback = (
+            self._text("current_operation", mode=labels[mode]) + punctuation
+        )
 
     def _update_wall_preview(self, point: tuple[int, int]) -> None:
         """更新吸附墙预览，并缓存非法原因以避免每帧重复寻路。"""
@@ -787,13 +966,17 @@ class PygameApplication:
             if agent_player is not None:
                 self._result_winner = Player(1 - agent_player)
                 self._screen = ApplicationScreen.RESULT
-                self._feedback = (
-                    f"player_{int(agent_player)} 提交非法动作，"
-                    f"player_{int(self._result_winner)} 获胜。"
+                self._feedback = self._text(
+                    "illegal_agent",
+                    player=f"player_{int(agent_player)}",
+                    winner=f"player_{int(self._result_winner)}",
                 )
                 return
             self._preview_reason = error.reason
-            self._feedback = f"未执行：{REASON_TEXT[error.reason]}。回合没有推进。"
+            self._feedback = self._text(
+                "illegal_human",
+                reason=self._text(REASON_KEYS[error.reason]),
+            )
             return
 
         self._position = next_position
@@ -817,22 +1000,31 @@ class PygameApplication:
         self._preview_wall = None
         self._preview_reason = None
         if isinstance(action, MovePawn):
-            self._feedback = (
-                f"已移动：{_human_square(action.target)}。下一回合已回到移动模式。"
+            self._feedback = self._text(
+                "moved",
+                target=_human_square(action.target),
             )
         else:
-            label = "横墙" if action.orientation is Orientation.HORIZONTAL else "竖墙"
-            self._feedback = (
-                f"已放置{label}：{_human_anchor(action.anchor)}。"
-                "下一回合已回到移动模式。"
+            label = self._text(
+                "horizontal_wall"
+                if action.orientation is Orientation.HORIZONTAL
+                else "vertical_wall"
+            )
+            self._feedback = self._text(
+                "placed_wall",
+                wall=label,
+                anchor=_human_anchor(action.anchor),
             )
         if self._position.winner is not None:
             self._result_winner = self._position.winner
             self._screen = ApplicationScreen.RESULT
-            self._feedback = f"player_{int(self._position.winner)} 获胜。"
+            self._feedback = self._text(
+                "winner",
+                player=f"player_{int(self._position.winner)}",
+            )
         elif self._plies >= self._max_plies:
             self._screen = ApplicationScreen.RESULT
-            self._feedback = f"达到 {self._max_plies} 手行动上限，本局未决。"
+            self._feedback = self._text("limit", max_plies=self._max_plies)
 
     def _draw_start(self, surface: pygame.Surface) -> None:
         """绘制模式、执子方、种子和速度选项组成的开始页。"""
@@ -842,9 +1034,24 @@ class PygameApplication:
         pygame.draw.rect(surface, COLORS["panel"], panel, border_radius=22)
         pygame.draw.rect(surface, COLORS["line"], panel, width=2, border_radius=22)
 
-        title = self._font(42).render("围墙棋", True, COLORS["ink"])
+        language_width = 82
+        language_gap = 8
+        language_y = panel.top + 22
+        english_language = pygame.Rect(
+            panel.right - 32 - language_width,
+            language_y,
+            language_width,
+            34,
+        )
+        chinese_language = english_language.move(-(language_width + language_gap), 0)
+
+        title = self._font(42).render(self._text("title"), True, COLORS["ink"])
         surface.blit(title, (panel.centerx - title.get_width() // 2, panel.top + 48))
-        subtitle = self._font(20).render("选择本地对局模式", True, COLORS["muted"])
+        subtitle = self._font(20).render(
+            self._text("subtitle"),
+            True,
+            COLORS["muted"],
+        )
         surface.blit(
             subtitle,
             (panel.centerx - subtitle.get_width() // 2, panel.top + 108),
@@ -881,6 +1088,8 @@ class PygameApplication:
         }
         start = pygame.Rect(panel.left + 150, panel.bottom - 105, panel.width - 300, 56)
         self._controls = {
+            Control.LANGUAGE_CHINESE: chinese_language,
+            Control.LANGUAGE_ENGLISH: english_language,
             Control.MODE_HUMAN_HUMAN: human_mode,
             Control.MODE_HUMAN_RANDOM: human_random_mode,
             Control.MODE_RANDOM_RANDOM: random_mode,
@@ -892,32 +1101,49 @@ class PygameApplication:
         }
         self._draw_button(
             surface,
+            chinese_language,
+            "中文",
+            selected=self._language is Language.CHINESE,
+            font_size=15,
+        )
+        self._draw_button(
+            surface,
+            english_language,
+            "English",
+            selected=self._language is Language.ENGLISH,
+            font_size=15,
+        )
+        self._draw_button(
+            surface,
             human_mode,
-            "人类 vs 人类",
+            self._text("human_human"),
             selected=self._selected_game_mode is GameMode.HUMAN_HUMAN,
+            font_size=17,
         )
         self._draw_button(
             surface,
             human_random_mode,
-            "人类 vs 随机",
+            self._text("human_random"),
             selected=self._selected_game_mode is GameMode.HUMAN_RANDOM,
+            font_size=17,
         )
         self._draw_button(
             surface,
             random_mode,
-            "随机 vs 随机",
+            self._text("random_random"),
             selected=self._selected_game_mode is GameMode.RANDOM_RANDOM,
+            font_size=17,
         )
         self._draw_button(
             surface,
             player_0,
-            "人类先手",
+            self._text("human_first_label"),
             selected=self._human_player is Player.PLAYER_0,
         )
         self._draw_button(
             surface,
             player_1,
-            "人类后手",
+            self._text("human_second_label"),
             selected=self._human_player is Player.PLAYER_1,
         )
         pygame.draw.rect(surface, COLORS["panel"], seed_input, border_radius=10)
@@ -929,7 +1155,7 @@ class PygameApplication:
             border_radius=10,
         )
         seed_label = self._font(18).render(
-            self._seed_text or "随机种子（可留空）",
+            self._seed_text or self._text("seed_placeholder"),
             True,
             COLORS["ink"] if self._seed_text else COLORS["muted"],
         )
@@ -938,9 +1164,9 @@ class PygameApplication:
             (seed_input.left + 14, seed_input.centery - seed_label.get_height() // 2),
         )
         for control, label, delay in (
-            (Control.SPEED_SLOW, "慢速", 1000),
-            (Control.SPEED_NORMAL, "正常", 500),
-            (Control.SPEED_FAST, "快速", 200),
+            (Control.SPEED_SLOW, self._text("slow_label"), 1000),
+            (Control.SPEED_NORMAL, self._text("normal_label"), 500),
+            (Control.SPEED_FAST, self._text("fast_label"), 200),
         ):
             self._draw_button(
                 surface,
@@ -948,7 +1174,12 @@ class PygameApplication:
                 label,
                 selected=self._agent_delay_ms == delay,
             )
-        self._draw_button(surface, start, "开始对局", selected=False)
+        self._draw_button(
+            surface,
+            start,
+            self._text("start_game"),
+            selected=False,
+        )
         feedback = self._font(17).render(self._feedback, True, COLORS["muted"])
         surface.blit(feedback, (panel.left + 70, panel.bottom - 155))
 
@@ -973,7 +1204,7 @@ class PygameApplication:
         board_rect = pygame.Rect(margin, header_height + margin, board_side, board_side)
         self._board = BoardGeometry.from_rect(board_rect)
 
-        title = self._font(30).render("围墙棋", True, COLORS["ink"])
+        title = self._font(30).render(self._text("title"), True, COLORS["ink"])
         surface.blit(title, (margin, max(8, (header_height - title.get_height()) // 2)))
         pygame.draw.rect(surface, COLORS["board_dark"], board_rect, border_radius=18)
 
@@ -1124,7 +1355,7 @@ class PygameApplication:
             self._draw_button(
                 surface,
                 return_to_result,
-                "返回结果",
+                self._text("return_result"),
                 selected=False,
             )
             controls_bottom = return_to_result.bottom
@@ -1136,9 +1367,17 @@ class PygameApplication:
             )
         else:
             mode_controls = (
-                (Control.MOVE, "移动", InputMode.MOVE),
-                (Control.HORIZONTAL_WALL, "横墙", InputMode.HORIZONTAL_WALL),
-                (Control.VERTICAL_WALL, "竖墙", InputMode.VERTICAL_WALL),
+                (Control.MOVE, self._text("mode_move"), InputMode.MOVE),
+                (
+                    Control.HORIZONTAL_WALL,
+                    self._text("mode_horizontal_wall"),
+                    InputMode.HORIZONTAL_WALL,
+                ),
+                (
+                    Control.VERTICAL_WALL,
+                    self._text("mode_vertical_wall"),
+                    InputMode.VERTICAL_WALL,
+                ),
             )
             for index, (control, label, mode) in enumerate(mode_controls):
                 rect = pygame.Rect(
@@ -1153,18 +1392,21 @@ class PygameApplication:
                     rect,
                     label,
                     selected=self._input_mode is mode,
+                    font_size=16,
                 )
             controls_bottom = button_y + 46
         status_top = controls_bottom + 20
         status_lines = self._status_lines()
+        next_line_top = status_top
         for index, line in enumerate(status_lines):
-            text = self._font(16 if index < 2 else 15).render(
-                line,
-                True,
-                COLORS["ink"] if index < 2 else COLORS["muted"],
-            )
-            surface.blit(text, (sidebar.left + 22, status_top + index * 31))
-        history_top = status_top + len(status_lines) * 31 + 6
+            font = self._font(16 if index < 2 else 15)
+            color = COLORS["ink"] if index < 2 else COLORS["muted"]
+            for wrapped_line in _wrap_text(line, font, sidebar.width - 44):
+                text = font.render(wrapped_line, True, color)
+                surface.blit(text, (sidebar.left + 22, next_line_top))
+                next_line_top += 24
+            next_line_top += 7
+        history_top = next_line_top + 6
         self._draw_action_history(surface, sidebar, history_top)
 
     def _draw_player_status_cards(
@@ -1208,12 +1450,20 @@ class PygameApplication:
             )
             surface.blit(identity, (card.left + 23, card.top + 7))
             if is_active:
-                active = self._font(12).render("行动中", True, player_color)
+                active = self._font(12).render(
+                    self._text("active"),
+                    True,
+                    player_color,
+                )
                 surface.blit(
                     active, (card.right - active.get_width() - 10, card.top + 9)
                 )
 
-            label = self._font(13).render("剩余", True, COLORS["muted"])
+            label = self._font(13).render(
+                self._text("remaining"),
+                True,
+                COLORS["muted"],
+            )
             surface.blit(label, (card.left + 11, card.top + 43))
             remaining = position.walls_remaining[player]
             count = self._font(22).render(
@@ -1267,7 +1517,7 @@ class PygameApplication:
     ) -> None:
         """绘制可滚动的动作历史，并记录各行的点击矩形。"""
         heading = self._font(16).render(
-            "行动记录（最新在上）",
+            self._text("history_heading"),
             True,
             COLORS["ink"],
         )
@@ -1327,7 +1577,7 @@ class PygameApplication:
             )
             pygame.draw.circle(surface, color, (row.left + 11, row.centery), 5)
             label = self._font(14).render(
-                _action_history_text(entry),
+                _action_history_text(entry, language=self._language),
                 True,
                 color,
             )
@@ -1367,18 +1617,18 @@ class PygameApplication:
         self._draw_button(
             surface,
             pause,
-            "继续" if self._paused else "暂停",
+            self._text("resume" if self._paused else "pause"),
             selected=self._paused,
         )
-        self._draw_button(surface, step, "单步", selected=False)
+        self._draw_button(surface, step, self._text("step"), selected=False)
 
         speed_width = (sidebar.width - 64) // 3
         speed_top = top + 60
         for index, (control, label, delay) in enumerate(
             (
-                (Control.SPEED_SLOW, "慢", 1000),
-                (Control.SPEED_NORMAL, "正常", 500),
-                (Control.SPEED_FAST, "快", 200),
+                (Control.SPEED_SLOW, self._text("slow_short"), 1000),
+                (Control.SPEED_NORMAL, self._text("normal_short"), 500),
+                (Control.SPEED_FAST, self._text("fast_short"), 200),
             )
         ):
             rect = pygame.Rect(
@@ -1393,6 +1643,7 @@ class PygameApplication:
                 rect,
                 label,
                 selected=self._agent_delay_ms == delay,
+                font_size=16,
             )
         return speed_top + 42
 
@@ -1403,13 +1654,14 @@ class PygameApplication:
         label: str,
         *,
         selected: bool,
+        font_size: int = 20,
     ) -> None:
         """按统一视觉样式绘制按钮及其选中状态。"""
         color = COLORS["selected"] if selected else COLORS["panel"]
         text_color = COLORS["white"] if selected else COLORS["ink"]
         pygame.draw.rect(surface, color, rect, border_radius=12)
         pygame.draw.rect(surface, COLORS["line"], rect, width=2, border_radius=12)
-        text = self._font(20).render(label, True, text_color)
+        text = self._font(font_size).render(label, True, text_color)
         surface.blit(
             text,
             (
@@ -1427,7 +1679,9 @@ class PygameApplication:
         panel = pygame.Rect(0, 0, min(560, width - 80), min(330, height - 80))
         panel.center = (width // 2, height // 2)
         pygame.draw.rect(surface, COLORS["panel"], panel, border_radius=20)
-        heading = "对局中止" if self._screen is ApplicationScreen.ERROR else "对局结束"
+        heading = self._text(
+            "game_aborted" if self._screen is ApplicationScreen.ERROR else "game_over"
+        )
         title = self._font(34).render(heading, True, COLORS["ink"])
         surface.blit(title, (panel.centerx - title.get_width() // 2, panel.top + 40))
         result = self._font(22).render(self._feedback, True, COLORS["muted"])
@@ -1435,16 +1689,16 @@ class PygameApplication:
 
         controls = (
             (
-                (Control.VIEW_HISTORY, "查看回放"),
-                (Control.RESTART_GAME, "再来一局"),
-                (Control.RETURN_TO_START, "返回开始"),
-                (Control.EXIT, "退出"),
+                (Control.VIEW_HISTORY, self._text("view_history")),
+                (Control.RESTART_GAME, self._text("restart")),
+                (Control.RETURN_TO_START, self._text("return_start")),
+                (Control.EXIT, self._text("exit")),
             )
             if self._screen is ApplicationScreen.RESULT
             else (
-                (Control.RESTART_GAME, "再来一局"),
-                (Control.RETURN_TO_START, "返回开始"),
-                (Control.EXIT, "退出"),
+                (Control.RESTART_GAME, self._text("restart")),
+                (Control.RETURN_TO_START, self._text("return_start")),
+                (Control.EXIT, self._text("exit")),
             )
         )
         gap = 10
@@ -1461,7 +1715,13 @@ class PygameApplication:
                 52,
             )
             self._controls[control] = rect
-            self._draw_button(surface, rect, label, selected=False)
+            self._draw_button(
+                surface,
+                rect,
+                label,
+                selected=False,
+                font_size=16,
+            )
 
     def _font(self, size: int) -> pygame.font.Font:
         """按字号缓存从内置字节资源加载的中文字体。"""
@@ -1485,24 +1745,59 @@ def _human_anchor(anchor: WallAnchor) -> str:
     return f"{chr(ord('a') + anchor.col)}{8 - anchor.row}"
 
 
-def _action_history_text(entry: ActionHistoryEntry) -> str:
+def _action_history_text(
+    entry: ActionHistoryEntry,
+    *,
+    language: Language = Language.CHINESE,
+) -> str:
     """生成一条适合历史面板显示的中文动作说明。"""
     if entry.player is None:
-        return "0. 初始局面"
+        return PYGAME_TEXT[language]["history_initial"]
     assert entry.action is not None
     player = f"player_{int(entry.player)}"
     if isinstance(entry.action, MovePawn):
         assert entry.move_start is not None
-        return (
-            f"{entry.ply}. {player} 移动 "
-            f"{_human_square(entry.move_start)} → {_human_square(entry.action.target)}"
+        return PYGAME_TEXT[language]["history_move"].format(
+            ply=entry.ply,
+            player=player,
+            start=_human_square(entry.move_start),
+            target=_human_square(entry.action.target),
         )
     orientation = (
-        "横墙" if entry.action.orientation is Orientation.HORIZONTAL else "竖墙"
+        PYGAME_TEXT[language]["horizontal_wall"]
+        if entry.action.orientation is Orientation.HORIZONTAL
+        else PYGAME_TEXT[language]["vertical_wall"]
     )
-    return (
-        f"{entry.ply}. {player} 放置{orientation} {_human_anchor(entry.action.anchor)}"
+    return PYGAME_TEXT[language]["history_wall"].format(
+        ply=entry.ply,
+        player=player,
+        wall=orientation,
+        anchor=_human_anchor(entry.action.anchor),
     )
+
+
+def _wrap_text(
+    value: str,
+    font: pygame.font.Font,
+    maximum_width: int,
+) -> tuple[str, ...]:
+    """Wrap localized UI text so it remains visible in the narrow sidebar."""
+    if font.size(value)[0] <= maximum_width:
+        return (value,)
+    units = value.split(" ") if " " in value else list(value)
+    separator = " " if " " in value else ""
+    lines: list[str] = []
+    current = ""
+    for unit in units:
+        candidate = unit if not current else current + separator + unit
+        if current and font.size(candidate)[0] > maximum_width:
+            lines.append(current)
+            current = unit
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return tuple(lines)
 
 
 def run() -> int:
@@ -1511,7 +1806,7 @@ def run() -> int:
     pygame.init()
     try:
         surface = pygame.display.set_mode(WINDOW_INITIAL, pygame.RESIZABLE)
-        pygame.display.set_caption("围墙棋")
+        pygame.display.set_caption(PYGAME_TEXT[Language.CHINESE]["window_title"])
         clock = pygame.time.Clock()
         application = PygameApplication()
         running = True
@@ -1526,6 +1821,7 @@ def run() -> int:
                 )
             application.update(elapsed_ms)
             application.draw(surface)
+            pygame.display.set_caption(application.snapshot.window_title)
             pygame.display.flip()
         return 0
     finally:

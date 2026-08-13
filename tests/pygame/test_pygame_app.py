@@ -971,3 +971,106 @@ def test_completed_game_can_replay_history_without_changing_final_position() -> 
     assert application.snapshot.reviewing_history is False
     assert application.snapshot.reviewed_ply is None
     assert application.snapshot.displayed_position == final_position
+
+
+def test_pygame_can_switch_to_english_and_keeps_it_across_navigation() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import Language, Square
+    from quoridor_rl.pygame_ui.app import (
+        ApplicationScreen,
+        Control,
+        PygameApplication,
+    )
+
+    application = PygameApplication(max_plies=1)
+    surface = pygame.Surface((1280, 800))
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.LANGUAGE_ENGLISH).center,
+        )
+    )
+
+    assert application.snapshot.language is Language.ENGLISH
+    assert application.snapshot.window_title == "Quoridor"
+    assert application.snapshot.feedback == "Choose a game mode to begin."
+
+    application.draw(surface)
+    for control in (Control.MODE_HUMAN_HUMAN, Control.START_GAME):
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.control_rect(control).center,
+            )
+        )
+    assert application.snapshot.status_lines == (
+        "Plies: 0",
+        "Action: Move",
+        "Game started: player_0 to move.",
+    )
+
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.square_rect(Square(7, 4)).center,
+        )
+    )
+    assert application.snapshot.screen is ApplicationScreen.RESULT
+    assert application.snapshot.feedback == ("Reached the 1-ply limit; game undecided.")
+
+    application.draw(surface)
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.control_rect(Control.RETURN_TO_START).center,
+        )
+    )
+    assert application.snapshot.screen is ApplicationScreen.START
+    assert application.snapshot.language is Language.ENGLISH
+    assert application.snapshot.feedback == "Choose a game mode to begin."
+
+
+def test_english_pygame_catalog_history_and_supported_sizes_are_complete() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import Language, MovePawn, Player, Position, Square
+    from quoridor_rl.pygame_ui.app import (
+        PYGAME_TEXT,
+        WINDOW_MIN,
+        ActionHistoryEntry,
+        Control,
+        PygameApplication,
+        _action_history_text,
+    )
+
+    assert PYGAME_TEXT[Language.CHINESE].keys() == PYGAME_TEXT[Language.ENGLISH].keys()
+    entry = ActionHistoryEntry(
+        ply=1,
+        player=Player.PLAYER_0,
+        action=MovePawn(Square(7, 4)),
+        resulting_position=Position.initial().play(MovePawn(Square(7, 4))),
+        move_start=Square(8, 4),
+    )
+    assert _action_history_text(entry, language=Language.ENGLISH) == (
+        "1. player_0 moved e1 → e2"
+    )
+
+    application = PygameApplication(language=Language.ENGLISH)
+    for size in (WINDOW_MIN, (1280, 800), (1600, 950)):
+        surface = pygame.Surface(size)
+        application.draw(surface)
+        visible = surface.get_rect()
+        for control in (
+            Control.LANGUAGE_CHINESE,
+            Control.LANGUAGE_ENGLISH,
+            Control.MODE_HUMAN_HUMAN,
+            Control.MODE_HUMAN_RANDOM,
+            Control.MODE_RANDOM_RANDOM,
+            Control.START_GAME,
+        ):
+            assert visible.contains(application.control_rect(control))

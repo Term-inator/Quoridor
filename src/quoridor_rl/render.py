@@ -1,14 +1,22 @@
 """环境与命令行游戏共用的纯文本棋盘渲染。"""
 
 from quoridor_rl.game import Orientation, Player, Position
+from quoridor_rl.language import Language
 
 
-def render_ascii(position: Position) -> str:
+def render_ascii(
+    position: Position,
+    *,
+    language: Language = Language.CHINESE,
+) -> str:
     """把绝对坐标局面渲染成人类可读的棋盘字符串。
 
     棋子用 ``1``/``2`` 表示；竖墙占用相邻两行的分隔符，横墙占用相邻两列的
     分隔符。显示坐标采用棋类习惯的 ``a1``～``i9``，与内部零基坐标方向相反。
     """
+    if not isinstance(language, Language):
+        raise TypeError("language must be a Language value")
+
     lines: list[str] = []
     walls = (
         position.placed_walls_by_player[Player.PLAYER_0]
@@ -53,9 +61,9 @@ def render_ascii(position: Position) -> str:
             lines.append(f"    {'+'.join(horizontal_segments)}")
 
     lines.append("     a   b   c   d   e   f   g   h   i")
-    lines.append(
-        "墙数：玩家 1 = "
-        f"{position.walls_remaining[Player.PLAYER_0]}，玩家 2 = "
-        f"{position.walls_remaining[Player.PLAYER_1]}"
-    )
+    remaining = position.walls_remaining
+    if language is Language.CHINESE:
+        lines.append(f"墙数：玩家 1 = {remaining[0]}，玩家 2 = {remaining[1]}")
+    else:
+        lines.append(f"Walls: player_0 = {remaining[0]}, player_1 = {remaining[1]}")
     return "\n".join(lines)

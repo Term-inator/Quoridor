@@ -10,7 +10,8 @@ def main() -> int:
     """启动 Pygame 应用；缺少可选依赖时输出明确安装说明。"""
     if importlib.util.find_spec("pygame") is None:
         print(
-            '未安装图形界面依赖。请运行：pip install "quoridor-rl[pygame]"',
+            "未安装图形界面依赖。 / The graphical interface dependency is not installed.\n"
+            '请运行 / Run: pip install "quoridor-rl[pygame]"',
             file=sys.stderr,
         )
         return 2

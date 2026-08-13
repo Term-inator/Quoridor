@@ -15,6 +15,7 @@ from quoridor_rl.game import (
     Square,
     WallAnchor,
 )
+from quoridor_rl.language import Language
 from quoridor_rl.render import render_ascii
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "ActionCodec",
     "IllegalActionError",
     "IllegalActionReason",
+    "Language",
     "MovePawn",
     "Orientation",
     "PlaceWall",

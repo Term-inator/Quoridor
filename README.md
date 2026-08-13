@@ -1,5 +1,7 @@
 # Quoridor RL
 
+[English](README.en.md) | 中文
+
 一个遵循官方标准双人规则的围墙棋（Quoridor）Python 实现，包含：
 
 - 与训练框架无关、不可变且可哈希的规则核心；
@@ -7,7 +9,7 @@
 - 固定的 209 维离散动作空间和合法动作 mask；
 - 双方共用网络所需的 canonical observation；
 - 人类对人类、人类对随机智能体的终端对局；
-- 可选的中文 Pygame 桌面界面，支持本地游玩和随机智能体观战。
+- 可选的中英文 Pygame 桌面界面，支持本地游玩和随机智能体观战。
 
 首版固定为 9×9 棋盘、每人 10 面墙，不包含四人制、可变棋盘、训练算法或奖励塑形。项目暂未发布到 PyPI。
 
@@ -46,7 +48,15 @@ for agent in environment.agent_iter():
     else:
         legal_ids = np.flatnonzero(observation["action_mask"])
         action = int(np.random.choice(legal_ids))
-    environment.step(action)
+environment.step(action)
+```
+
+ANSI 棋盘需要英语输出时，可显式传入语言：
+
+```python
+from quoridor_rl import Language, env
+
+environment = env(render_mode="ansi", language=Language.ENGLISH)
 ```
 
 ### 动作空间
@@ -152,6 +162,9 @@ uv run quoridor --opponent human
 
 # 对随机智能体，可固定随机种子
 uv run quoridor --opponent random --seed 42
+
+# 英文终端界面
+uv run quoridor --language en --opponent random
 ```
 
 棋盘输入采用左下角为 `a1` 的人类坐标：
@@ -165,7 +178,7 @@ quit
 
 ## 使用 Pygame 图形界面
 
-开始界面提供人类对人类、人类对随机智能体、随机智能体对随机智能体三种模式。人类对随机智能体时可以选择先手或后手；包含随机智能体的模式可以填写整数种子并选择播放速度。
+开始界面可切换“中文 / English”，默认使用中文；语言选择在当前应用进程中保留。界面提供人类对人类、人类对随机智能体、随机智能体对随机智能体三种模式。人类对随机智能体时可以选择先手或后手；包含随机智能体的模式可以填写整数种子并选择播放速度。
 
 - 移动：直接点击棋盘上显示的合法目标；
 - 放墙：选择“横墙”或“竖墙”，鼠标会吸附到最近的墙锚点，单击确认；
