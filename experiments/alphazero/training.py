@@ -1,4 +1,4 @@
-"""Replay storage and policy-value updates for AlphaZero."""
+"""AlphaZero 的搜索样本回放存储与策略—价值联合更新。"""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from experiments.alphazero.model import PolicyValueNetwork
 
 @dataclass(frozen=True, slots=True)
 class AlphaZeroConfig:
+    """自我对弈、MCTS、课程学习、回放与优化超参数。"""
     seed: int = 0
     max_plies: int = 512
     simulations_per_move: int = 32
@@ -37,6 +38,7 @@ class AlphaZeroConfig:
 
 @dataclass(frozen=True, slots=True)
 class TrainingExample:
+    """一个规范观测、MCTS 访问策略和最终胜负价值标签。"""
     observation: np.ndarray
     policy: np.ndarray
     value: float
@@ -44,11 +46,13 @@ class TrainingExample:
 
 @dataclass(frozen=True, slots=True)
 class TrainingBatch:
+    """可整体迁移设备的 AlphaZero 训练批次。"""
     observations: torch.Tensor
     policies: torch.Tensor
     values: torch.Tensor
 
     def to(self, device: torch.device) -> TrainingBatch:
+        """返回所有字段均位于目标设备的新批次。"""
         return TrainingBatch(
             observations=self.observations.to(device),
             policies=self.policies.to(device),
@@ -57,9 +61,14 @@ class TrainingBatch:
 
 
 class ReplayBuffer:
-    """Fixed-capacity replay for canonical observations and search targets."""
+    """保存规范观测与搜索目标的固定容量环形回放。
+
+    棋盘观测以乘十后的 ``uint8`` 无损保存，访问策略用 ``float16`` 压缩；取样时恢复
+    为训练所需 ``float32``。
+    """
 
     def __init__(self, capacity: int, *, seed: int) -> None:
+        """预分配列式 NumPy 存储和独立随机采样器。"""
         if capacity <= 0:
             raise ValueError("replay capacity must be positive")
         self.capacity = capacity
@@ -71,9 +80,11 @@ class ReplayBuffer:
         self._random = np.random.default_rng(seed)
 
     def __len__(self) -> int:
+        """返回当前有效训练样本数。"""
         return self._size
 
     def add(self, example: TrainingExample) -> None:
+        """校验搜索目标并写入环形缓冲，满容量后覆盖最旧样本。"""
         if example.observation.shape != (6, 9, 9):
             raise ValueError("observation must have shape (6, 9, 9)")
         if example.policy.shape != (209,):
@@ -90,6 +101,7 @@ class ReplayBuffer:
         self._size = min(self._size + 1, self.capacity)
 
     def sample(self, batch_size: int) -> TrainingBatch:
+        """无放回均匀采样并解压为浮点训练张量。"""
         if batch_size <= 0:
             raise ValueError("batch size must be positive")
         if batch_size > self._size:
@@ -105,7 +117,7 @@ class ReplayBuffer:
 
 
 class PolicyValueUpdater:
-    """Optimize policy cross-entropy and terminal-value regression."""
+    """联合优化 MCTS 策略交叉熵与终局价值回归。"""
 
     def __init__(
         self,
@@ -113,6 +125,7 @@ class PolicyValueUpdater:
         config: AlphaZeroConfig,
         device: torch.device,
     ) -> None:
+        """建立带权重衰减的 AdamW 优化器。"""
         self.model = model
         self.config = config
         self.device = device
@@ -123,6 +136,7 @@ class PolicyValueUpdater:
         )
 
     def update(self, batch: TrainingBatch) -> dict[str, float]:
+        """执行一次联合损失更新，裁剪梯度并返回诊断指标。"""
         batch = batch.to(self.device)
         self.model.train()
         logits, values = self.model(batch.observations)

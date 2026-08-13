@@ -1,4 +1,4 @@
-"""Experiment orchestration and result artifact generation."""
+"""PPO 限时实验编排、检查点评估与证据产物生成。"""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ from experiments.ppo.training import (
 
 @dataclass(frozen=True, slots=True)
 class ExperimentArtifacts:
+    """一次实验对外返回的指标、摘要、曲线、权重和配置路径。"""
     metrics_path: Path
     summary_path: Path
     curve_path: Path
@@ -47,7 +48,11 @@ def run_experiment(
     validation_games: int = 200,
     final_games: int = 1000,
 ) -> ExperimentArtifacts:
-    """Run the bounded single-seed experiment and write its evidence."""
+    """运行受训练/总时限约束的单种子实验，并写出可复核证据。
+
+    训练时间只累计采样与更新；总时限还覆盖阶段评估和产物写入。按计划时间点评估并
+    保留最佳检查点，最终使用最佳权重进行更大样本评估。
+    """
     if config is None:
         config = PPOConfig()
     if device.type == "cuda" and not torch.cuda.is_available():
@@ -266,6 +271,7 @@ def run_smoke(
     *,
     device: torch.device,
 ) -> ExperimentArtifacts:
+    """以极小配置跑通采样、更新、评估和产物写入全链路。"""
     """Run one tiny collect/update/reload/evaluate cycle."""
     config = PPOConfig(
         environment_count=1,

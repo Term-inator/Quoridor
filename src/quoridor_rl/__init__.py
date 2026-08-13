@@ -1,4 +1,4 @@
-"""Two-player Quoridor rules and reinforcement-learning environment."""
+"""双人围墙棋规则、编码器、参考智能体与强化学习环境的公共 API。"""
 
 from quoridor_rl.agents import RandomAgent
 from quoridor_rl.codec import ActionCodec

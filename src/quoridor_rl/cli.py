@@ -1,4 +1,4 @@
-"""Interactive terminal game for human validation and play."""
+"""供人工验收和游玩的交互式终端入口。"""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from quoridor_rl.render import render_ascii
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """解析命令行参数并运行人类对局或人机对局。"""
     parser = argparse.ArgumentParser(description="在终端中玩双人围墙棋")
     parser.add_argument(
         "--opponent",
@@ -83,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _parse_action(command: str) -> Action:
+    """把终端命令解析为规则层语义动作。"""
     parts = command.casefold().split()
     if len(parts) == 2 and parts[0] in {"move", "m"}:
         return MovePawn(_parse_square(parts[1]))
@@ -103,18 +105,21 @@ def _parse_action(command: str) -> Action:
 
 
 def _parse_square(value: str) -> Square:
+    """把人类棋盘坐标（如 ``e2``）转换成内部棋子坐标。"""
     if len(value) != 2 or value[0] not in "abcdefghi" or value[1] not in "123456789":
         raise ValueError("格子必须为 a1 到 i9")
     return Square(9 - int(value[1]), ord(value[0]) - ord("a"))
 
 
 def _parse_anchor(value: str) -> WallAnchor:
+    """把人类棋盘坐标转换成 8×8 的内部墙锚点坐标。"""
     if len(value) != 2 or value[0] not in "abcdefgh" or value[1] not in "12345678":
         raise ValueError("墙锚点必须为 a1 到 h8")
     return WallAnchor(8 - int(value[1]), ord(value[0]) - ord("a"))
 
 
 def _format_action(action: Action) -> str:
+    """把语义动作格式化成可再次输入终端的命令。"""
     if isinstance(action, MovePawn):
         square = f"{chr(ord('a') + action.target.col)}{9 - action.target.row}"
         return f"move {square}"

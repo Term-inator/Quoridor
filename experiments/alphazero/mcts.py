@@ -1,4 +1,4 @@
-"""PUCT Monte Carlo tree search guided by a policy-value network."""
+"""由策略—价值网络引导的 PUCT 蒙特卡洛树搜索。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from quoridor_rl.game import Action, MovePawn, Position
 
 @dataclass(slots=True)
 class _Edge:
+    """父节点上的动作边，保存先验、访问统计及可复用子树。"""
     action: Action
     prior: float
     visit_count: int = 0
@@ -23,11 +24,13 @@ class _Edge:
 
     @property
     def mean_value(self) -> float:
+        """返回从父节点行动方视角累计的平均价值。"""
         return self.value_sum / self.visit_count if self.visit_count else 0.0
 
 
 @dataclass(slots=True)
 class _Node:
+    """一个规则局面及其惰性展开的出边。"""
     position: Position
     children: dict[int, _Edge] = field(default_factory=dict)
     expanded: bool = False
@@ -36,6 +39,7 @@ class _Node:
 
 @dataclass(frozen=True, slots=True)
 class SearchResult:
+    """一次根搜索产生的动作、访问策略和性能诊断。"""
     action_id: int
     policy: np.ndarray
     root_value: float
@@ -44,7 +48,7 @@ class SearchResult:
 
 
 class PUCTSearch:
-    """Reusable search tree for one game."""
+    """单局内可随真实动作向下复用的搜索树。"""
 
     def __init__(
         self,
@@ -60,6 +64,7 @@ class PUCTSearch:
         progress_prior_fraction: float,
         seed: int,
     ) -> None:
+        """校验搜索、探索噪声、分支裁剪和课程先验参数。"""
         if simulations <= 0:
             raise ValueError("simulations must be positive")
         if c_puct <= 0:
@@ -94,7 +99,11 @@ class PUCTSearch:
         add_root_noise: bool,
         temperature: float,
     ) -> SearchResult:
-        """Search ``position`` and select from its visit-count policy."""
+        """搜索 ``position``，根据根节点访问次数策略选择动作。
+
+        每次模拟依次执行 PUCT 选择、首次叶节点展开和符号交替的价值回传；达到剩余
+        手数上限按和局价值零处理。
+        """
         if position.to_move is None:
             raise ValueError("cannot search a terminal position")
         if remaining_plies <= 0:
@@ -154,7 +163,7 @@ class PUCTSearch:
         )
 
     def advance(self, action_id: int, position: Position) -> None:
-        """Reuse the selected subtree when it matches the played position."""
+        """真实动作与预测子节点一致时复用子树，否则从新局面重建根。"""
         child = None
         if self.root is not None:
             edge = self.root.children.get(action_id)
@@ -167,6 +176,7 @@ class PUCTSearch:
 
     @torch.no_grad()
     def _expand(self, node: _Node) -> float:
+        """用网络展开节点，并按配置裁剪候选墙、混合课程进度先验。"""
         player = node.position.to_move
         if player is None:
             raise ValueError("cannot expand a terminal node")
@@ -232,6 +242,7 @@ class PUCTSearch:
         return float(value.item())
 
     def _add_root_noise(self, root: _Node) -> None:
+        """把 Dirichlet 噪声混入根先验，增加自我对弈探索多样性。"""
         edges = list(root.children.values())
         noise = self.random.dirichlet([self.dirichlet_alpha] * len(edges))
         fraction = self.root_noise_fraction
@@ -240,6 +251,7 @@ class PUCTSearch:
         root.noise_applied = True
 
     def _select(self, node: _Node) -> _Edge:
+        """按平均价值与先验探索奖励之和选择 PUCT 出边。"""
         total_visits = sum(edge.visit_count for edge in node.children.values())
         scale = math.sqrt(max(1, total_visits))
         return max(
@@ -253,6 +265,7 @@ class PUCTSearch:
 
 
 def _backpropagate(path: list[_Edge], leaf_value: float) -> None:
+    """沿路径反向累计叶价值；每过一手切换玩家视角并反号。"""
     value = leaf_value
     for edge in reversed(path):
         value = -value
@@ -261,6 +274,7 @@ def _backpropagate(path: list[_Edge], leaf_value: float) -> None:
 
 
 def _visit_policy(root: _Node) -> np.ndarray:
+    """把根出边访问次数归一化到固定 209 维策略空间。"""
     policy = np.zeros(ActionCodec.action_count, dtype=np.float32)
     total = sum(edge.visit_count for edge in root.children.values())
     if total <= 0:
@@ -275,6 +289,7 @@ def _select_action(
     temperature: float,
     random: np.random.Generator,
 ) -> int:
+    """按温度变换后的访问策略采样；零温度直接取众数动作。"""
     if temperature == 0:
         return int(policy.argmax())
     weights = np.power(policy, 1 / temperature, dtype=np.float64)
@@ -283,6 +298,7 @@ def _select_action(
 
 
 def _node_mean_value(node: _Node) -> float:
+    """聚合节点所有出边的平均搜索价值。"""
     visits = sum(edge.visit_count for edge in node.children.values())
     if not visits:
         return 0.0

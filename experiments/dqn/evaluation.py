@@ -1,4 +1,4 @@
-"""Deterministic evaluation of a frozen Q network against random play."""
+"""冻结 Q 网络对战随机策略的确定性评估。"""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from quoridor_rl import env
 
 @dataclass(frozen=True, slots=True)
 class RoleResult:
+    """模型担任一个固定先后手角色时的结果计数。"""
     games: int
     wins: int
     losses: int
@@ -22,6 +23,7 @@ class RoleResult:
 
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
+    """合并两个角色、并记录完整性与非法动作的评估结果。"""
     as_player_0: RoleResult
     as_player_1: RoleResult
     illegal_actions: int
@@ -66,7 +68,7 @@ def evaluate(
     deadline: float | None = None,
     progress: bool = False,
 ) -> EvaluationResult:
-    """Evaluate deterministic masked argmax play with equal role assignment."""
+    """让模型平均担任先后手，以带掩码 argmax 对战可复现随机策略。"""
     if games <= 0 or games % 2:
         raise ValueError("games must be a positive even integer")
     counts = {

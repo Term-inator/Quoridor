@@ -1,4 +1,8 @@
-"""Numeric action and observation encoding for reinforcement-learning adapters."""
+"""强化学习适配层使用的动作编号与观测张量编码。
+
+编码统一采用“当前玩家向上进攻”的规范视角，从而让同一策略网络可以无差别地控制
+双方。玩家 1 的绝对坐标会绕棋盘中心旋转 180° 后再编码。
+"""
 
 from operator import index
 
@@ -17,12 +21,16 @@ from quoridor_rl.game import (
 
 
 class ActionCodec:
-    """Convert between semantic actions and the fixed 209-action policy space."""
+    """在语义动作与固定的 209 维策略空间之间转换。
+
+    编号布局为 81 个棋子目标格、64 个横墙锚点、64 个竖墙锚点。编号空间包含当前
+    局面下的非法动作，调用方应配合动作掩码使用。
+    """
 
     action_count = 209
 
     def encode(self, action: Action, player: Player) -> int:
-        """Encode an absolute-coordinate action in ``player``'s perspective."""
+        """把绝对坐标动作编码为 ``player`` 规范视角下的动作编号。"""
         if isinstance(action, MovePawn):
             row, col = _square_in_view(action.target, player)
             return row * 9 + col
@@ -32,7 +40,7 @@ class ActionCodec:
         return offset + row * 8 + col
 
     def decode(self, action_id: int, player: Player) -> Action:
-        """Decode an action ID from ``player``'s perspective to absolute coordinates."""
+        """把 ``player`` 视角的动作编号解码成绝对坐标语义动作。"""
         if isinstance(action_id, bool):
             raise TypeError("action ID must be an integer between 0 and 208")
         try:
@@ -61,12 +69,16 @@ class ActionCodec:
 
 
 class ObservationCodec:
-    """Encode a rule position from one player's canonical perspective."""
+    """从指定玩家的规范视角把局面编码为六通道观测。
+
+    通道依次为己方棋子、对方棋子、横墙、竖墙、己方剩余墙比例、对方剩余墙比例。
+    墙通道只表达几何布局，不区分墙由谁放置。
+    """
 
     shape = (6, 9, 9)
 
     def encode(self, position: Position, player: Player) -> np.ndarray:
-        """Return the canonical six-plane observation for ``player``."""
+        """返回 ``player`` 视角、形状为 ``(6, 9, 9)`` 的浮点观测。"""
         opponent = Player(1 - player)
         observation = np.zeros(self.shape, dtype=np.float32)
 
@@ -87,12 +99,14 @@ class ObservationCodec:
 
 
 def _square_in_view(square: Square, player: Player) -> tuple[int, int]:
+    """把棋子绝对坐标转换到玩家的规范视角。"""
     if player is Player.PLAYER_0:
         return square.row, square.col
     return 8 - square.row, 8 - square.col
 
 
 def _anchor_in_view(anchor: WallAnchor, player: Player) -> tuple[int, int]:
+    """把 8×8 墙锚点坐标转换到玩家的规范视角。"""
     if player is Player.PLAYER_0:
         return anchor.row, anchor.col
     return 7 - anchor.row, 7 - anchor.col

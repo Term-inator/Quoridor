@@ -1,10 +1,10 @@
-"""Small neural-network building blocks shared by local experiments."""
+"""本地学习实验共用的小型神经网络构件。"""
 
 from torch import nn
 
 
 def board_encoder() -> nn.Sequential:
-    """Create the compact board encoder used by the PPO and DQN experiments."""
+    """创建 PPO、DQN 与 AlphaZero 共用的紧凑棋盘特征编码器。"""
     return nn.Sequential(
         nn.Conv2d(6, 64, kernel_size=3, padding=1),
         nn.ReLU(),

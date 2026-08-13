@@ -1,4 +1,4 @@
-"""Command-line entry point for the bounded Masked Double DQN validation."""
+"""限时 Masked Double DQN 验证实验的命令行入口。"""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from experiments.dqn.experiment import (
 
 
 def main() -> None:
+    """解析运行、冒烟或恢复模式及其参数，并打印生成的产物路径。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--recover-stopped", action="store_true")
@@ -70,6 +71,7 @@ def main() -> None:
 
 
 def _device(requested: str) -> torch.device:
+    """解析设备选项；显式 CUDA 不可用时立即报错。"""
     if requested == "cpu":
         return torch.device("cpu")
     if requested == "cuda":

@@ -1,4 +1,4 @@
-"""Build and smoke-test the distribution in an isolated environment."""
+"""在隔离虚拟环境中构建并冒烟验证发行 wheel。"""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 def main() -> None:
+    """构建唯一 wheel、安装到临时环境并验证导入和控制台入口。"""
     repository = Path(__file__).resolve().parents[1]
     environment = os.environ.copy()
 
@@ -67,6 +68,7 @@ def main() -> None:
 
 
 def _venv_executable(virtual_environment: Path, name: str) -> Path:
+    """按当前操作系统返回虚拟环境内可执行文件路径。"""
     directory = "Scripts" if os.name == "nt" else "bin"
     suffix = ".exe" if os.name == "nt" else ""
     return virtual_environment / directory / f"{name}{suffix}"
@@ -77,6 +79,7 @@ def _run(
     cwd: Path,
     environment: dict[str, str],
 ) -> None:
+    """在指定目录和环境中运行子进程，非零退出码立即失败。"""
     subprocess.run(command, cwd=cwd, env=environment, check=True)
 
 

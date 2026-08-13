@@ -1,4 +1,4 @@
-"""Bounded AlphaZero experiment orchestration and evidence generation."""
+"""AlphaZero 限时实验编排、阶段评估与证据产物生成。"""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ from experiments.alphazero.training import (
 
 @dataclass(frozen=True, slots=True)
 class ExperimentArtifacts:
+    """一次实验生成的指标、摘要、曲线、权重、配置及可选对比路径。"""
     metrics_path: Path
     summary_path: Path
     curve_path: Path
@@ -48,7 +49,11 @@ def run_experiment(
     validation_games: int = 200,
     final_games: int = 1_000,
 ) -> ExperimentArtifacts:
-    """Run the bounded single-seed AlphaZero experiment."""
+    """运行受训练/总时限约束的单种子 AlphaZero 实验。
+
+    每轮先产生一局搜索自对弈，仅把有明确胜负的样本加入回放，再执行若干策略—价值
+    更新。阶段评估选择最佳检查点，最终生成指标、图表与跨算法对比证据。
+    """
     config = AlphaZeroConfig() if config is None else config
     _validate(config, training_seconds, total_seconds)
     _prepare_runtime(config, device)
@@ -269,6 +274,7 @@ def run_smoke(
     *,
     device: torch.device,
 ) -> ExperimentArtifacts:
+    """用极小搜索和回放配置验证 AlphaZero 端到端执行路径。"""
     """Exercise search, self-play, replay, updates, restore, and evaluation."""
     config = AlphaZeroConfig(
         max_plies=128,

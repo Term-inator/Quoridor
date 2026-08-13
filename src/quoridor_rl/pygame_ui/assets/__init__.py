@@ -1,1 +1,1 @@
-"""Packaged resources for the Pygame interface."""
+"""随桌面界面发行的字体等静态资源。"""

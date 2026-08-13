@@ -1,4 +1,4 @@
-"""Rollout collection and PPO updates for the local learning validation."""
+"""本地 PPO 学习验证的完整轨迹采集与裁剪目标更新。"""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ AGENTS = ("player_0", "player_1")
 
 @dataclass(frozen=True, slots=True)
 class PPOConfig:
+    """PPO 环境、采样、GAE 和优化相关超参数。"""
     seed: int = 0
     environment_count: int = 4
     rollout_size: int = 4096
@@ -42,6 +43,7 @@ class PPOConfig:
 
 @dataclass(frozen=True, slots=True)
 class Transition:
+    """某玩家两个相邻决策点之间的一条 on-policy 转移。"""
     trajectory: int
     agent: str
     observation: torch.Tensor
@@ -57,6 +59,7 @@ class Transition:
 
 @dataclass(frozen=True, slots=True)
 class EpisodeStats:
+    """完整自我对弈局的长度、结果和双方塑形回报。"""
     plies: int
     winner: str | None
     terminated: bool
@@ -66,12 +69,17 @@ class EpisodeStats:
 
 @dataclass(frozen=True, slots=True)
 class Rollout:
+    """一次采样阶段产生的完整转移与对局集合。"""
     transitions: list[Transition]
     episodes: list[EpisodeStats]
 
 
 class PPOUpdater:
-    """Apply TorchRL's clipped PPO loss to collected AEC trajectories."""
+    """把 TorchRL 的裁剪 PPO 损失应用到 AEC 轨迹。
+
+    适配器把项目模型接入 TorchRL 的 actor/critic 接口；更新前按玩家与对局重建序列并
+    计算 GAE，再打散成小批次重复优化。
+    """
 
     def __init__(
         self,
@@ -79,6 +87,7 @@ class PPOUpdater:
         config: PPOConfig,
         device: torch.device,
     ) -> None:
+        """组装策略、价值、PPO 损失、GAE 与共享参数优化器。"""
         self.model = model
         self.config = config
         self.device = device
@@ -119,6 +128,7 @@ class PPOUpdater:
         )
 
     def update(self, transitions: list[Transition]) -> dict[str, float]:
+        """计算优势后执行多轮小批量更新并返回平均诊断指标。"""
         batch = _training_batch(transitions, self.gae).to(self.device)
         metric_totals = {
             "policy_loss": 0.0,
@@ -158,6 +168,7 @@ class PPOUpdater:
 
 
 class _PolicyAdapter(nn.Module):
+    """把联合模型适配为 TorchRL 只返回策略 logits 的模块。"""
     def __init__(self, model: MaskedActorCritic) -> None:
         super().__init__()
         self.model = model
@@ -171,6 +182,7 @@ class _PolicyAdapter(nn.Module):
 
 
 class _ValueAdapter(nn.Module):
+    """把联合模型适配为 TorchRL 要求末维为一的价值模块。"""
     def __init__(self, model: MaskedActorCritic) -> None:
         super().__init__()
         self.model = model
@@ -181,6 +193,7 @@ class _ValueAdapter(nn.Module):
 
 @dataclass(slots=True)
 class _PendingTransition:
+    """等待同一玩家下一决策点以补齐奖励和下一价值的转移。"""
     trajectory: int
     agent: str
     observation: torch.Tensor
@@ -193,6 +206,7 @@ class _PendingTransition:
 
 @dataclass(slots=True)
 class _EnvironmentSlot:
+    """一个 TorchRL 包装环境及其未闭合转移和局统计。"""
     index: int
     aec: PotentialRewardWrapper
     torch_env: PettingZooWrapper
@@ -206,6 +220,7 @@ class _EnvironmentSlot:
 
     @property
     def trajectory(self) -> int:
+        """生成跨环境槽和复用局均唯一的轨迹编号。"""
         return self.episode_number * 10_000 + self.index
 
 
@@ -214,7 +229,7 @@ def collect_rollout(
     config: PPOConfig,
     device: torch.device,
 ) -> Rollout:
-    """Collect complete self-play episodes using one shared current policy."""
+    """使用双方共享的当前策略采集完整自我对弈局，直至满足轨迹规模。"""
     slots = [_make_slot(index, config) for index in range(config.environment_count)]
     transitions: list[Transition] = []
     episodes: list[EpisodeStats] = []
@@ -280,6 +295,7 @@ def collect_rollout(
 
 
 def _make_slot(index: int, config: PPOConfig) -> _EnvironmentSlot:
+    """创建带塑形奖励并启用动作掩码的 TorchRL 环境槽。"""
     aec = PotentialRewardWrapper(env(max_plies=config.max_plies))
     with warnings.catch_warnings():
         warnings.filterwarnings(
@@ -300,6 +316,7 @@ def _make_slot(index: int, config: PPOConfig) -> _EnvironmentSlot:
 
 
 def _reset_slot(slot: _EnvironmentSlot) -> None:
+    """复用环境槽开始下一局，并清空所有局内累计状态。"""
     slot.episode_number += 1
     slot.pending.clear()
     slot.shaped_returns = {agent: 0.0 for agent in AGENTS}
@@ -307,11 +324,13 @@ def _reset_slot(slot: _EnvironmentSlot) -> None:
 
 
 def _current_observation(slot: _EnvironmentSlot) -> torch.Tensor:
+    """从多智能体 TensorDict 取出当前行动方的棋盘观测。"""
     agent = slot.aec.agent_selection
     return slot.state[(agent, "observation", "observation")][0]
 
 
 def _current_action_mask(slot: _EnvironmentSlot) -> torch.Tensor:
+    """从多智能体 TensorDict 取出当前行动方的合法动作掩码。"""
     agent = slot.aec.agent_selection
     return slot.state[(agent, "action_mask")][0]
 
@@ -323,6 +342,7 @@ def _close_pending(
     terminated: bool,
     truncated: bool,
 ) -> Transition:
+    """把待定决策补齐为不可变训练转移。"""
     return Transition(
         trajectory=pending.trajectory,
         agent=pending.agent,
@@ -345,6 +365,7 @@ def _finish_episode(
     transitions: list[Transition],
     episodes: list[EpisodeStats],
 ) -> None:
+    """闭合一局剩余转移；截断局用价值自举，真实终局价值归零。"""
     terminated = all(slot.aec.terminations.values())
     truncated = all(slot.aec.truncations.values())
     next_values = {agent: 0.0 for agent in AGENTS}
@@ -381,6 +402,7 @@ def _finish_episode(
 
 
 def _training_batch(transitions: list[Transition], gae: GAE) -> TensorDict:
+    """按“对局—玩家”恢复时序，逐序列计算 GAE 后拼成训练批次。"""
     trajectories: dict[tuple[int, str], list[Transition]] = {}
     for transition in transitions:
         trajectories.setdefault((transition.trajectory, transition.agent), []).append(

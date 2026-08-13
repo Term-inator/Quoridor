@@ -1,4 +1,4 @@
-"""AlphaZero self-play data generation."""
+"""AlphaZero 自我对弈训练数据生成。"""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from quoridor_rl.game import Player, Position
 
 @dataclass(frozen=True, slots=True)
 class SelfPlayGame:
+    """一局搜索自对弈产生的样本、结果与搜索性能统计。"""
     examples: list[TrainingExample]
     plies: int
     winner: Player | None
@@ -33,7 +34,11 @@ def play_self_game(
     *,
     game_index: int,
 ) -> SelfPlayGame:
-    """Play one noisy search-vs-search game and label it with terminal outcome."""
+    """完成一局带根噪声的搜索自对弈，并用最终胜负标注所有历史视角。
+
+    课程阶段只允许移动棋子，并混入偏向缩短路径的先验；正式阶段恢复放墙。开局使用
+    温度采样增加多样性，之后转为确定性选择。
+    """
     started = time.monotonic()
     position = Position.initial()
     action_codec = ActionCodec()

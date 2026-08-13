@@ -1,4 +1,9 @@
-"""Pygame desktop application for local Quoridor games."""
+"""用于本地围墙棋对局的 Pygame 桌面应用。
+
+应用把规则状态、输入状态和绘制几何分开：所有规则判断委托给 ``Position``，本模块
+只维护页面切换、参与者调度、历史回放以及响应式绘制。公开快照和语义控件矩形构成
+自动化测试边界，测试无需依赖像素颜色猜测应用状态。
+"""
 
 from __future__ import annotations
 
@@ -57,7 +62,7 @@ REASON_TEXT = {
 
 
 class ApplicationScreen(Enum):
-    """User-visible screens in the desktop application."""
+    """桌面应用对用户可见的顶层页面。"""
 
     START = "start"
     PLAYING = "playing"
@@ -66,7 +71,7 @@ class ApplicationScreen(Enum):
 
 
 class GameMode(Enum):
-    """Supported combinations of local participants."""
+    """本地参与者的受支持组合。"""
 
     HUMAN_HUMAN = "human_human"
     HUMAN_RANDOM = "human_random"
@@ -74,7 +79,7 @@ class GameMode(Enum):
 
 
 class Control(Enum):
-    """Semantic controls exposed for UI automation at the app seam."""
+    """在应用测试边界暴露的语义控件标识。"""
 
     MODE_HUMAN_HUMAN = "mode_human_human"
     MODE_HUMAN_RANDOM = "mode_human_random"
@@ -99,7 +104,7 @@ class Control(Enum):
 
 
 class InputMode(Enum):
-    """Current human action intent."""
+    """当前人类玩家准备执行的动作类型。"""
 
     MOVE = "move"
     HORIZONTAL_WALL = "horizontal_wall"
@@ -108,7 +113,7 @@ class InputMode(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ActionHistoryEntry:
-    """One position in a desktop game's history, including the initial one."""
+    """桌面对局的一条历史记录；第零条表示无动作的初始局面。"""
 
     ply: int
     player: Player | None
@@ -119,7 +124,7 @@ class ActionHistoryEntry:
 
 @dataclass(frozen=True, slots=True)
 class ApplicationSnapshot:
-    """Observable state exposed at the application test seam."""
+    """通过应用测试边界暴露的只读可观察状态。"""
 
     screen: ApplicationScreen
     feedback: str
@@ -146,14 +151,16 @@ class ApplicationSnapshot:
 
 
 class ActionChoosingAgent(Protocol):
-    """Minimal semantic interface shared by bundled and future agents."""
+    """内置及未来智能体共同遵守的最小语义接口。"""
 
-    def choose_action(self, position: Position) -> Action: ...
+    def choose_action(self, position: Position) -> Action:
+        """根据当前不可变局面选择一个语义动作。"""
+        ...
 
 
 @dataclass(frozen=True, slots=True)
 class BoardGeometry:
-    """Map semantic board locations into the current visible board."""
+    """把规则层棋盘坐标映射到当前窗口中的像素几何。"""
 
     rect: pygame.Rect
     cell: float
@@ -163,6 +170,7 @@ class BoardGeometry:
 
     @classmethod
     def from_rect(cls, rect: pygame.Rect) -> BoardGeometry:
+        """根据可用正方形区域计算格子、间隙和原点尺寸。"""
         inset = max(18.0, rect.width * 0.047)
         usable = rect.width - inset * 2
         gap_ratio = 0.18
@@ -171,9 +179,11 @@ class BoardGeometry:
 
     @property
     def pitch(self) -> float:
+        """返回相邻格左上角之间的像素距离。"""
         return self.cell + self.gap
 
     def square_rect(self, square: Square) -> pygame.Rect:
+        """返回指定棋格的像素矩形。"""
         return pygame.Rect(
             round(self.origin_x + square.col * self.pitch),
             round(self.origin_y + square.row * self.pitch),
@@ -182,12 +192,14 @@ class BoardGeometry:
         )
 
     def anchor_center(self, anchor: WallAnchor) -> tuple[float, float]:
+        """返回墙锚点在格间交叉处的像素中心。"""
         return (
             self.origin_x + anchor.col * self.pitch + self.cell + self.gap / 2,
             self.origin_y + anchor.row * self.pitch + self.cell + self.gap / 2,
         )
 
     def wall_rect(self, wall: PlaceWall) -> pygame.Rect:
+        """返回一堵横墙或竖墙跨越两个格边的像素矩形。"""
         if wall.orientation is Orientation.HORIZONTAL:
             return pygame.Rect(
                 round(self.origin_x + wall.anchor.col * self.pitch),
@@ -203,6 +215,7 @@ class BoardGeometry:
         )
 
     def nearest_anchor(self, point: tuple[int, int]) -> WallAnchor | None:
+        """把鼠标位置吸附到最近墙锚点；棋盘交互区外返回 ``None``。"""
         interactive = self.rect.inflate(
             -round(self.rect.width * 0.05),
             -round(self.rect.height * 0.05),
@@ -215,7 +228,7 @@ class BoardGeometry:
 
 
 class PygameApplication:
-    """Own the desktop interaction and rendering lifecycle."""
+    """管理桌面应用的交互状态、智能体调度与绘制生命周期。"""
 
     def __init__(
         self,
@@ -223,6 +236,7 @@ class PygameApplication:
         agent_factory: Callable[[int | None], ActionChoosingAgent] = RandomAgent,
         max_plies: int = 512,
     ) -> None:
+        """加载字体资源并初始化尚未开始对局的应用状态。"""
         if max_plies <= 0:
             raise ValueError("max_plies must be positive")
         pygame.font.init()
@@ -275,6 +289,7 @@ class PygameApplication:
 
     @property
     def snapshot(self) -> ApplicationSnapshot:
+        """返回不暴露内部可变容器的完整应用快照。"""
         return ApplicationSnapshot(
             screen=self._screen,
             feedback=self._feedback,
@@ -301,24 +316,24 @@ class PygameApplication:
         )
 
     def control_rect(self, control: Control) -> pygame.Rect:
-        """Return the current visible rectangle for a semantic control."""
+        """返回语义控件当前可见矩形的副本。"""
         return self._controls[control].copy()
 
     def square_rect(self, square: Square) -> pygame.Rect:
-        """Return the current visible rectangle for a semantic square."""
+        """返回语义棋格当前可见的矩形。"""
         if self._board is None:
             raise RuntimeError("the playing board has not been drawn")
         return self._board.square_rect(square)
 
     def wall_anchor_point(self, anchor: WallAnchor) -> tuple[int, int]:
-        """Return the visible snap point for a semantic wall anchor."""
+        """返回语义墙锚点在屏幕上的吸附点。"""
         if self._board is None:
             raise RuntimeError("the playing board has not been drawn")
         x, y = self._board.anchor_center(anchor)
         return round(x), round(y)
 
     def player_status_rect(self, player: Player) -> pygame.Rect:
-        """Return the visible status-card rectangle for a player identity."""
+        """返回指定玩家的可见状态卡矩形。"""
         return self._player_status_cards[player].copy()
 
     def wall_inventory_segment_rect(
@@ -326,15 +341,15 @@ class PygameApplication:
         player: Player,
         index: int,
     ) -> pygame.Rect:
-        """Return one visible segment from a player's ten-wall inventory."""
+        """返回玩家十段剩余墙库存中的一个可见矩形。"""
         return self._wall_inventory_segments[player][index].copy()
 
     def history_entry_rect(self, ply: int) -> pygame.Rect:
-        """Return the visible rectangle for one history entry."""
+        """返回指定手数历史记录的可见矩形。"""
         return self._history_entry_rects[ply].copy()
 
     def handle_event(self, event: pygame.event.Event) -> bool:
-        """Handle one real Pygame event and report whether to continue."""
+        """处理一个真实 Pygame 事件，并返回主循环是否应继续。"""
         if event.type == pygame.QUIT:
             return False
         if event.type in (pygame.VIDEORESIZE, pygame.WINDOWRESIZED):
@@ -381,7 +396,7 @@ class PygameApplication:
         return True
 
     def update(self, elapsed_ms: int) -> None:
-        """Advance time-dependent behavior."""
+        """推进与时间有关的行为，在延迟到期时触发智能体行动。"""
         if self._screen is not ApplicationScreen.PLAYING or self._paused:
             return
         if not self._is_agent_turn():
@@ -392,7 +407,7 @@ class PygameApplication:
             self._perform_agent_action()
 
     def draw(self, surface: pygame.Surface) -> None:
-        """Draw the current visible state to a real Pygame surface."""
+        """把当前应用状态绘制到真实 Pygame 画布，并刷新命中测试几何。"""
         self._surface_size = surface.get_size()
         self._player_status_cards = {}
         self._wall_inventory_segments = {}
@@ -410,6 +425,7 @@ class PygameApplication:
                 self._draw_result(surface)
 
     def _handle_click(self, point: tuple[int, int]) -> None:
+        """按当前页面和交互优先级分派一次左键点击。"""
         if self._screen is ApplicationScreen.START:
             self._seed_focused = False
             if self._controls.get(
@@ -549,6 +565,7 @@ class PygameApplication:
                 return
 
     def _start_game(self) -> None:
+        """按已选模式创建全新局面、参与智能体和第零条历史记录。"""
         assert self._selected_game_mode is not None
         self._screen = ApplicationScreen.PLAYING
         self._game_mode = self._selected_game_mode
@@ -587,12 +604,14 @@ class PygameApplication:
         self._feedback = "对局开始：player_0 行动。"
 
     def _agent_seeds(self) -> tuple[int | None, int | None]:
+        """从局级种子稳定派生两个互不相同的智能体种子。"""
         if self._seed is None:
             return None, None
         generator = random.Random(self._seed)
         return generator.randrange(2**63), generator.randrange(2**63)
 
     def _handle_seed_key(self, event: pygame.event.Event) -> None:
+        """编辑开始页的种子文本，最终整数校验留给开始按钮。"""
         if event.key == pygame.K_BACKSPACE:
             self._seed_text = self._seed_text[:-1]
         elif (
@@ -601,6 +620,7 @@ class PygameApplication:
             self._seed_text += event.unicode
 
     def _speed_control_at(self, point: tuple[int, int]) -> Control | None:
+        """返回鼠标位置命中的自动播放速度控件。"""
         for control in (
             Control.SPEED_SLOW,
             Control.SPEED_NORMAL,
@@ -612,6 +632,7 @@ class PygameApplication:
         return None
 
     def _set_speed(self, control: Control | None) -> None:
+        """设置自动智能体的行动间隔并重置当前计时。"""
         speeds = {
             Control.SPEED_SLOW: (1000, "慢速"),
             Control.SPEED_NORMAL: (500, "正常"),
@@ -624,6 +645,7 @@ class PygameApplication:
         self._feedback = f"智能体速度：{label}。"
 
     def _is_agent_turn(self) -> bool:
+        """判断当前行动玩家是否由已注册智能体控制。"""
         return (
             self._position is not None
             and self._position.to_move is not None
@@ -631,6 +653,7 @@ class PygameApplication:
         )
 
     def _status_lines(self) -> tuple[str, ...]:
+        """根据普通对局或历史回放状态生成状态栏文本。"""
         if self._position is None:
             return (self._feedback,)
         if self._reviewing_history:
@@ -653,20 +676,24 @@ class PygameApplication:
         )
 
     def _reviewed_history_entry(self) -> ActionHistoryEntry | None:
+        """返回回放游标指向的历史项；未回放时返回 ``None``。"""
         if not self._reviewing_history or self._reviewed_ply is None:
             return None
         return self._action_history[self._reviewed_ply]
 
     def _displayed_position(self) -> Position | None:
+        """返回应绘制的实时局面或历史局面。"""
         entry = self._reviewed_history_entry()
         return entry.resulting_position if entry is not None else self._position
 
     def _leave_history_review(self) -> None:
+        """退出历史回放并清除回放游标和滚动量。"""
         self._reviewing_history = False
         self._reviewed_ply = None
         self._history_scroll_rows = 0
 
     def _scroll_history(self, wheel_y: int) -> None:
+        """在可见历史范围内处理鼠标滚轮位移。"""
         if not (self._screen is ApplicationScreen.PLAYING or self._reviewing_history):
             return
         maximum = max(0, len(self._action_history) - self._history_visible_rows)
@@ -676,6 +703,7 @@ class PygameApplication:
         )
 
     def _perform_agent_action(self) -> None:
+        """隔离智能体异常并尝试提交其选择的语义动作。"""
         if not self._is_agent_turn():
             return
         assert self._position is not None
@@ -695,6 +723,7 @@ class PygameApplication:
         )
 
     def _set_input_mode(self, mode: InputMode) -> None:
+        """切换人类输入意图，同时清除旧的放墙预览。"""
         self._input_mode = mode
         self._preview_wall = None
         self._preview_reason = None
@@ -706,6 +735,7 @@ class PygameApplication:
         self._feedback = f"当前操作：{labels[mode]}。"
 
     def _update_wall_preview(self, point: tuple[int, int]) -> None:
+        """更新吸附墙预览，并缓存非法原因以避免每帧重复寻路。"""
         self._preview_wall = None
         self._preview_reason = None
         if (
@@ -743,6 +773,7 @@ class PygameApplication:
         *,
         agent_player: Player | None = None,
     ) -> None:
+        """执行人类或智能体动作，并原子地推进局面、历史和结果状态。"""
         assert self._position is not None
         mover = self._position.to_move
         move_start = (
@@ -804,6 +835,7 @@ class PygameApplication:
             self._feedback = f"达到 {self._max_plies} 手行动上限，本局未决。"
 
     def _draw_start(self, surface: pygame.Surface) -> None:
+        """绘制模式、执子方、种子和速度选项组成的开始页。"""
         width, height = surface.get_size()
         panel = pygame.Rect(0, 0, min(760, width - 60), min(700, height - 40))
         panel.center = (width // 2, height // 2)
@@ -921,6 +953,7 @@ class PygameApplication:
         surface.blit(feedback, (panel.left + 70, panel.bottom - 155))
 
     def _draw_game(self, surface: pygame.Surface) -> None:
+        """绘制对局页整体布局，并根据窗口尺寸重算响应式分栏。"""
         position = self._displayed_position()
         assert position is not None
         history_entry = self._reviewed_history_entry()
@@ -1140,6 +1173,7 @@ class PygameApplication:
         sidebar: pygame.Rect,
         position: Position,
     ) -> int:
+        """绘制双方身份、当前回合以及剩余墙库存，并返回内容底边。"""
         gap = 10
         left = sidebar.left + 22
         top = sidebar.top + 22
@@ -1231,6 +1265,7 @@ class PygameApplication:
         sidebar: pygame.Rect,
         top: int,
     ) -> None:
+        """绘制可滚动的动作历史，并记录各行的点击矩形。"""
         heading = self._font(16).render(
             "行动记录（最新在上）",
             True,
@@ -1322,6 +1357,7 @@ class PygameApplication:
         sidebar: pygame.Rect,
         top: int,
     ) -> int:
+        """绘制暂停、单步和速度控件，并返回控件区底边。"""
         gap = 10
         primary_width = (sidebar.width - 54) // 2
         pause = pygame.Rect(sidebar.left + 22, top, primary_width, 46)
@@ -1368,6 +1404,7 @@ class PygameApplication:
         *,
         selected: bool,
     ) -> None:
+        """按统一视觉样式绘制按钮及其选中状态。"""
         color = COLORS["selected"] if selected else COLORS["panel"]
         text_color = COLORS["white"] if selected else COLORS["ink"]
         pygame.draw.rect(surface, color, rect, border_radius=12)
@@ -1382,6 +1419,7 @@ class PygameApplication:
         )
 
     def _draw_result(self, surface: pygame.Surface) -> None:
+        """在棋盘上方绘制对局结果或参与者错误对话框。"""
         width, height = surface.get_size()
         overlay = pygame.Surface((width, height), pygame.SRCALPHA)
         overlay.fill((23, 33, 28, 150))
@@ -1426,24 +1464,29 @@ class PygameApplication:
             self._draw_button(surface, rect, label, selected=False)
 
     def _font(self, size: int) -> pygame.font.Font:
+        """按字号缓存从内置字节资源加载的中文字体。"""
         if size not in self._fonts:
             self._fonts[size] = pygame.font.Font(io.BytesIO(self._font_bytes), size)
         return self._fonts[size]
 
 
 def _player_color(player: Player) -> pygame.Color:
+    """返回玩家在整个界面中稳定使用的主题色。"""
     return COLORS["p0"] if player is Player.PLAYER_0 else COLORS["p1"]
 
 
 def _human_square(square: Square) -> str:
+    """把内部棋格坐标转换为 ``a1``～``i9``。"""
     return f"{chr(ord('a') + square.col)}{9 - square.row}"
 
 
 def _human_anchor(anchor: WallAnchor) -> str:
+    """把内部墙锚点转换为 ``a1``～``h8``。"""
     return f"{chr(ord('a') + anchor.col)}{8 - anchor.row}"
 
 
 def _action_history_text(entry: ActionHistoryEntry) -> str:
+    """生成一条适合历史面板显示的中文动作说明。"""
     if entry.player is None:
         return "0. 初始局面"
     assert entry.action is not None
@@ -1463,6 +1506,7 @@ def _action_history_text(entry: ActionHistoryEntry) -> str:
 
 
 def run() -> int:
+    """创建可缩放窗口并运行事件、更新、绘制主循环。"""
     """Run the interactive desktop event loop."""
     pygame.init()
     try:

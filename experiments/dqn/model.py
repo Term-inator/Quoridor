@@ -1,4 +1,4 @@
-"""Masked Q network for the local Double DQN experiment."""
+"""本地 Double DQN 实验使用的带掩码 Q 网络。"""
 
 from __future__ import annotations
 
@@ -9,14 +9,16 @@ from experiments.model import board_encoder
 
 
 class MaskedQNetwork(nn.Module):
-    """Estimate action values and select only legal actions."""
+    """估计全部动作价值，并保证选择结果只落在合法动作中。"""
 
     def __init__(self, action_count: int = 209) -> None:
+        """以共享棋盘编码器连接 209 维线性 Q 值头。"""
         super().__init__()
         self.features = board_encoder()
         self.q_head = nn.Linear(256, action_count)
 
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
+        """返回批量观测中每个固定动作编号的未掩码 Q 值。"""
         return self.q_head(self.features(observation))
 
     @torch.no_grad()
@@ -27,6 +29,7 @@ class MaskedQNetwork(nn.Module):
         *,
         epsilon: float,
     ) -> torch.Tensor:
+        """按 ε-greedy 策略逐样本选择合法动作。"""
         legal = action_mask.bool()
         if legal.ndim != 2 or not legal.any(dim=1).all():
             raise ValueError("every observation must have at least one legal action")

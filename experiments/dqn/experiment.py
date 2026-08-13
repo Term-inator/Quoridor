@@ -1,4 +1,4 @@
-"""Bounded DQN experiment orchestration and evidence generation."""
+"""DQN 限时实验编排、恢复逻辑与证据产物生成。"""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ from experiments.dqn.training import (
 
 @dataclass(frozen=True, slots=True)
 class ExperimentArtifacts:
+    """一次实验生成的核心文件路径，可选包含跨算法对比。"""
     metrics_path: Path
     summary_path: Path
     curve_path: Path
@@ -41,6 +42,7 @@ class ExperimentArtifacts:
 
 @dataclass(frozen=True, slots=True)
 class _TrainingStep:
+    """消费一次采集批次后的计数、优化指标和周期性操作标记。"""
     transition_count: int
     update_count: int
     metrics: dict[str, float]
@@ -61,7 +63,11 @@ def run_experiment(
     final_games: int = 1_000,
     ppo_results_directory: Path = Path("experiments/ppo/results/seed-0"),
 ) -> ExperimentArtifacts:
-    """Run the bounded single-seed DQN experiment and write its evidence."""
+    """运行受训练/总时限约束的单种子 DQN 实验并写出证据。
+
+    主循环依次采集、写入回放、按间隔更新网络、同步目标网络和冻结对手快照；阶段
+    评估按胜率与截断情况选择最佳检查点，最终再生成汇总及 PPO 对比。
+    """
     if config is None:
         config = DQNConfig()
     _validate_config(config)
@@ -285,6 +291,7 @@ def run_smoke(
     *,
     device: torch.device,
 ) -> ExperimentArtifacts:
+    """以极小配置验证 DQN 采集、回放、更新、评估和写盘全链路。"""
     """Exercise every DQN training subsystem in one bounded run."""
     config = DQNConfig(
         environment_count=1,
@@ -418,6 +425,7 @@ def recover_user_stopped_experiment(
     device: torch.device,
     ppo_results_directory: Path = Path("experiments/ppo/results/seed-0"),
 ) -> ExperimentArtifacts:
+    """从已写指标和检查点完成用户中止实验的最终评估与产物整理。"""
     """Recover completed checkpoint evidence after an operator interruption."""
     from tensorboard.backend.event_processing.event_accumulator import (
         EventAccumulator,

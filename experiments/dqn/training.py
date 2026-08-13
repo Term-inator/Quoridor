@@ -1,4 +1,4 @@
-"""Replay and update logic for the masked Double DQN experiment."""
+"""带合法动作掩码的 Double DQN 实验：回放存储、批处理与参数更新。"""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from experiments.dqn.model import MaskedQNetwork
 
 @dataclass(frozen=True, slots=True)
 class DQNConfig:
+    """DQN 采样、回放、优化、探索和对手池的完整超参数。"""
     seed: int = 0
     environment_count: int = 4
     max_plies: int = 512
@@ -35,6 +36,7 @@ class DQNConfig:
 
 @dataclass(frozen=True, slots=True)
 class Transition:
+    """从学习方一次行动到其下次决策点的时序差分转移。"""
     observation: torch.Tensor
     action_mask: torch.Tensor
     action: int
@@ -48,6 +50,7 @@ class Transition:
 
 @dataclass(frozen=True, slots=True)
 class TransitionBatch:
+    """可向设备整体迁移的一批张量化回放样本。"""
     observations: torch.Tensor
     action_masks: torch.Tensor
     actions: torch.Tensor
@@ -57,6 +60,7 @@ class TransitionBatch:
     done: torch.Tensor
 
     def to(self, device: torch.device) -> TransitionBatch:
+        """返回所有字段均位于目标设备的新批次。"""
         return TransitionBatch(
             observations=self.observations.to(device),
             action_masks=self.action_masks.to(device),
@@ -69,9 +73,14 @@ class TransitionBatch:
 
 
 class ReplayBuffer:
-    """Fixed-capacity uniform replay with compact lossless board storage."""
+    """固定容量、均匀采样且无损压缩棋盘观测的环形回放缓冲区。
+
+    观测值只可能是 0、1 或十分之一墙数，因此乘十后用 ``uint8`` 可无损保存，显著
+    降低大容量回放的内存占用；采样时再恢复为网络需要的浮点数。
+    """
 
     def __init__(self, capacity: int, *, seed: int) -> None:
+        """预分配全部列式张量，并创建独立、可复现的采样生成器。"""
         if capacity <= 0:
             raise ValueError("replay capacity must be positive")
         self.capacity = capacity
@@ -87,9 +96,11 @@ class ReplayBuffer:
         self._generator = torch.Generator().manual_seed(seed)
 
     def __len__(self) -> int:
+        """返回当前有效样本数，而非底层容量。"""
         return self._size
 
     def add(self, transition: Transition) -> None:
+        """在写指针处加入样本；容量已满时覆盖最旧样本。"""
         index = self._position
         self._observations[index].copy_(_pack_observation(transition.observation))
         self._action_masks[index].copy_(transition.action_mask.bool())
@@ -104,6 +115,7 @@ class ReplayBuffer:
         self._size = min(self._size + 1, self.capacity)
 
     def sample(self, batch_size: int) -> TransitionBatch:
+        """无放回均匀抽取一个批次，并解压观测。"""
         if batch_size <= 0:
             raise ValueError("batch size must be positive")
         if batch_size > self._size:
@@ -121,17 +133,23 @@ class ReplayBuffer:
 
 
 def _pack_observation(observation: torch.Tensor) -> torch.Tensor:
+    """校验单局观测形状并无损量化到 CPU ``uint8``。"""
     if observation.shape != (6, 9, 9):
         raise ValueError("observation must have shape (6, 9, 9)")
     return observation.mul(10).round().to(dtype=torch.uint8, device="cpu")
 
 
 def _unpack_observation(observation: torch.Tensor) -> torch.Tensor:
+    """把紧凑观测还原成网络输入所需浮点范围。"""
     return observation.float().div(10)
 
 
 class DQNUpdater:
-    """Apply masked one-step Double DQN updates."""
+    """执行带动作掩码的一步 Double DQN 更新。
+
+    在线网络负责选择下一动作，冻结目标网络只负责评价该动作，从而降低普通 DQN 的
+    过估计偏差；非法动作在选择前被填为负无穷。
+    """
 
     def __init__(
         self,
@@ -139,6 +157,7 @@ class DQNUpdater:
         config: DQNConfig,
         device: torch.device,
     ) -> None:
+        """复制初始目标网络并建立在线网络优化器。"""
         self.online = online
         self.config = config
         self.device = device
@@ -151,6 +170,7 @@ class DQNUpdater:
         )
 
     def update(self, batch: TransitionBatch) -> dict[str, float]:
+        """校验回放合法性，计算 Huber 损失并完成一次裁剪梯度更新。"""
         batch = batch.to(self.device)
         chosen_are_legal = batch.action_masks.gather(
             1, batch.actions.unsqueeze(1)
@@ -189,6 +209,7 @@ class DQNUpdater:
         }
 
     def sync_target(self) -> None:
+        """把在线参数完整同步到冻结目标网络。"""
         self.target.load_state_dict(self.online.state_dict())
 
 
@@ -203,7 +224,7 @@ def double_dqn_targets(
     done: torch.Tensor,
     gamma: float,
 ) -> torch.Tensor:
-    """Build masked one-step Double DQN targets for a transition batch."""
+    """构造带掩码的一步 Double DQN 目标；终局样本不自举。"""
     result = rewards.clone()
     active = ~done.bool()
     if not active.any():

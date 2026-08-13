@@ -1,4 +1,4 @@
-"""Learner-only self-play transition collection."""
+"""只记录学习方决策的 DQN 自我对弈转移采集器。"""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ AGENTS = ("player_0", "player_1")
 
 @dataclass(frozen=True, slots=True)
 class EpisodeStats:
+    """一局结束后用于实验汇总的学习方视角统计。"""
     episode: int
     learner_agent: str
     plies: int
@@ -30,12 +31,14 @@ class EpisodeStats:
 
 @dataclass(frozen=True, slots=True)
 class Collection:
+    """一次采集返回的学习转移和完整对局统计。"""
     transitions: list[Transition]
     episodes: list[EpisodeStats]
 
 
 @dataclass(slots=True)
 class _PendingTransition:
+    """等待对手行动结束后才能补齐下一状态的学习方决策。"""
     observation: torch.Tensor
     action_mask: torch.Tensor
     action: int
@@ -44,6 +47,7 @@ class _PendingTransition:
 
 @dataclass(slots=True)
 class _Slot:
+    """一个并行轮询的环境槽及其局内采集状态。"""
     environment: PotentialRewardWrapper
     learner_agent: str
     opponent: MaskedQNetwork | None
@@ -53,7 +57,11 @@ class _Slot:
 
 
 class SelfPlayCollector:
-    """Collect transitions made by one online learner against frozen opponents."""
+    """让在线学习方对战冻结对手，只采集学习方产生的转移。
+
+    AEC 环境在双方之间交替，因此学习方动作的 ``next_observation`` 必须等对手走完后
+    才能确定；``_PendingTransition`` 用于跨过对手回合累计奖励并闭合该转移。
+    """
 
     def __init__(
         self,
@@ -62,6 +70,7 @@ class SelfPlayCollector:
         config: DQNConfig,
         device: torch.device,
     ) -> None:
+        """创建指定数量的环境槽，并为每局随机分配学习方角色。"""
         self.online = online
         self.opponents = opponents
         self.config = config
@@ -71,6 +80,7 @@ class SelfPlayCollector:
         self._slots = [self._make_slot() for _ in range(config.environment_count)]
 
     def collect(self, minimum_transitions: int, *, epsilon: float) -> Collection:
+        """轮询所有环境槽，直到至少收集指定数量的学习方转移。"""
         if minimum_transitions <= 0:
             raise ValueError("minimum transitions must be positive")
         transitions: list[Transition] = []
@@ -81,6 +91,7 @@ class SelfPlayCollector:
         return Collection(transitions=transitions, episodes=episodes)
 
     def _make_slot(self) -> _Slot:
+        """创建并重置一个带塑形奖励的新环境槽。"""
         environment = PotentialRewardWrapper(env(max_plies=self.config.max_plies))
         environment.reset()
         slot = _Slot(
@@ -93,6 +104,7 @@ class SelfPlayCollector:
         return slot
 
     def _reset_slot(self, slot: _Slot) -> None:
+        """复用已结束环境槽，并重新抽取角色和对手。"""
         slot.environment.reset()
         slot.learner_agent = self._random.choice(AGENTS)
         slot.opponent = self.opponents.sample()
@@ -108,6 +120,7 @@ class SelfPlayCollector:
         transitions: list[Transition],
         episodes: list[EpisodeStats],
     ) -> None:
+        """推进环境槽一个 AEC 行动，必要时闭合转移或记录整局统计。"""
         acting_agent = slot.environment.agent_selection
         observation, action_mask = _observe(slot.environment, acting_agent)
         if acting_agent == slot.learner_agent:
@@ -182,6 +195,7 @@ def _observe(
     environment: PotentialRewardWrapper,
     agent: str,
 ) -> tuple[torch.Tensor, torch.Tensor]:
+    """把环境的 NumPy 观测和动作掩码转换为 CPU 张量。"""
     observed = environment.observe(agent)
     return (
         torch.from_numpy(observed["observation"]).float(),
@@ -196,6 +210,7 @@ def _close_pending(
     *,
     done: bool,
 ) -> Transition:
+    """用下一决策点信息闭合待定转移，并清空槽内暂存。"""
     pending = slot.pending
     if pending is None:
         raise RuntimeError("cannot close an absent learner transition")

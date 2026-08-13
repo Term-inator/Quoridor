@@ -1,4 +1,4 @@
-"""Command-line entry point for the bounded AlphaZero validation."""
+"""限时 AlphaZero 验证实验的命令行入口。"""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from experiments.alphazero.experiment import run_experiment, run_smoke
 
 
 def main() -> None:
+    """解析实验参数，执行正式或冒烟运行并打印证据产物路径。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
@@ -56,6 +57,7 @@ def main() -> None:
 
 
 def _device(requested: str) -> torch.device:
+    """解析设备选项；自动模式在 CUDA 可用时优先使用 GPU。"""
     if requested == "cpu":
         return torch.device("cpu")
     if requested == "cuda":

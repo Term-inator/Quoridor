@@ -1,4 +1,4 @@
-"""MCTS policy-value evaluation against a random participant."""
+"""策略—价值 MCTS 对战随机参与者的平衡角色评估。"""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ _worker_config: AlphaZeroConfig | None = None
 
 @dataclass(frozen=True, slots=True)
 class RoleResult:
+    """搜索策略担任某个固定角色时的结果计数。"""
     games: int
     wins: int
     losses: int
@@ -32,6 +33,7 @@ class RoleResult:
 
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
+    """汇总先后手、非法动作及计划局数完成情况。"""
     as_player_0: RoleResult
     as_player_1: RoleResult
     illegal_actions: int
@@ -76,7 +78,11 @@ def evaluate(
     deadline: float | None = None,
     progress: bool = False,
 ) -> EvaluationResult:
-    """Evaluate deterministic fixed-simulation MCTS with balanced identities."""
+    """以固定模拟次数、零温度 MCTS 平衡担任先后手进行评估。
+
+    CPU 且任务足够多时使用 ``spawn`` 多进程并行；其他设备走当前进程，避免跨进程
+    复制加速器状态。
+    """
     if games <= 0 or games % 2:
         raise ValueError("games must be a positive even integer")
     counts = {

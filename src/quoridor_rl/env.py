@@ -1,4 +1,8 @@
-"""PettingZoo AEC adapter for the two-player Quoridor rules."""
+"""双人围墙棋规则的 PettingZoo AEC 环境适配器。
+
+规则状态仍由不可变的 :class:`Position` 管理；本模块只负责 PettingZoo 的轮流行动
+协议、张量观测、动作掩码、奖励以及终止/截断信号。
+"""
 
 from __future__ import annotations
 
@@ -19,14 +23,14 @@ Observation = dict[str, np.ndarray]
 
 
 def env(*, max_plies: int = 512, render_mode: str | None = None) -> AECEnv:
-    """Create the public, order-enforced PettingZoo AEC environment."""
+    """创建带行动顺序检查包装器的公共 PettingZoo AEC 环境。"""
     return OrderEnforcingWrapper(
         QuoridorEnv(max_plies=max_plies, render_mode=render_mode)
     )
 
 
 class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
-    """Unwrapped AEC implementation backed by an immutable ``Position``."""
+    """由不可变 ``Position`` 驱动、尚未包装的 AEC 环境实现。"""
 
     metadata: ClassVar[dict[str, Any]] = {
         "name": "quoridor_v0",
@@ -40,6 +44,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         max_plies: int = 512,
         render_mode: str | None = None,
     ) -> None:
+        """配置回合上限和渲染模式，并声明固定的动作/观测空间。"""
         super().__init__()
         if max_plies <= 0:
             raise ValueError("max_plies must be positive")
@@ -85,6 +90,10 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> None:
+        """重置规则局面及全部 AEC 逐局状态。
+
+        环境本身没有随机初始状态，因此当前忽略 ``seed`` 和 ``options``。
+        """
         del seed, options
         self._position = Position.initial()
         self.plies = 0
@@ -98,17 +107,20 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         self.agent_selection = self._agent_selector.reset()
 
     def observation_space(self, agent: Agent) -> spaces.Space:
+        """返回指定智能体的静态观测空间。"""
         return self.observation_spaces[agent]
 
     @property
     def position(self) -> Position:
-        """Return the current immutable rule position."""
+        """返回当前不可变规则局面。"""
         return self._position
 
     def action_space(self, agent: Agent) -> spaces.Space:
+        """返回指定智能体的固定 209 维离散动作空间。"""
         return self.action_spaces[agent]
 
     def observe(self, agent: Agent) -> Observation:
+        """生成规范视角观测和仅在该智能体可行动时有效的动作掩码。"""
         player = _player_for(agent)
         observation = self._observation_codec.encode(self.position, player)
 
@@ -125,6 +137,11 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         return {"observation": observation, "action_mask": action_mask}
 
     def step(self, action: int | None) -> None:
+        """执行当前智能体的一步，并更新 AEC 奖励与结束状态。
+
+        无法解码或违反规则的动作会立即判当前玩家负、对手胜；达到 ``max_plies``
+        则双方截断而不判胜负。已结束智能体的空动作交给 PettingZoo 基类处理。
+        """
         current_agent = self.agent_selection
         if self.terminations[current_agent] or self.truncations[current_agent]:
             self._was_dead_step(action)
@@ -135,6 +152,7 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         self._cumulative_rewards[current_agent] = 0.0
         self._clear_rewards()
 
+        # 解码错误和规则错误统一视作非法动作，但不让底层异常泄漏到训练循环。
         semantic_action = None
         if action is not None:
             try:
@@ -172,12 +190,14 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
         self._accumulate_rewards()
 
     def render(self) -> str | None:
+        """在 ``ansi`` 模式下返回文本棋盘，否则不产生渲染结果。"""
         if self.render_mode != "ansi":
             return None
         return render_ascii(self.position)
 
 
 def _player_for(agent: Agent) -> Player:
+    """把 PettingZoo 智能体名称映射到规则层玩家枚举。"""
     if agent == "player_0":
         return Player.PLAYER_0
     if agent == "player_1":

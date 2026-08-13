@@ -1,1 +1,1 @@
-"""Optional Pygame desktop interface."""
+"""可选安装的 Pygame 桌面界面包。"""
