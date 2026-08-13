@@ -17,7 +17,7 @@
 
 ```bash
 uv sync --python 3.14
-uv run pytest
+uv run pytest tests/package
 ```
 
 基础安装不会安装 Pygame。需要图形界面时使用：
@@ -184,15 +184,30 @@ quit
 
 ## 验证
 
+发行包、可选图形界面和本地训练实验分别验证：
+
 ```bash
-uv run pytest
-uv run --extra pygame pytest
+# 基础发行包
+uv run pytest tests/package
+
+# Pygame optional extra
+uv run --extra pygame pytest tests/pygame
+
+# 构建 wheel，并在隔离环境中验证安装、规则、AEC、CLI 和发行内容
+uv run python scripts/check-wheel.py
+
+# 不进入 wheel 的训练实验
+uv run --group train pytest tests/experiments
+
+# 安装全部依赖后一次运行所有测试
+uv run --group train --extra pygame pytest
+
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy src
 ```
 
-测试覆盖普通移动、直跳、墙/边界受阻后的斜跳、墙冲突、双方路径保留、终局、动作编码往返、canonical observation、AEC 生命周期、随机完整对局和 CLI。PettingZoo 官方 `api_test` 也包含在测试套件中。
+`tests/package/` 覆盖普通移动、直跳、墙/边界受阻后的斜跳、墙冲突、双方路径保留、终局、动作编码往返、canonical observation、AEC 生命周期、随机完整对局和 CLI。PettingZoo 官方 `api_test` 也包含在这一层。`tests/pygame/` 验证可选图形界面，`tests/experiments/` 验证不会随包发布的训练代码；实验胜率不是发行门槛。
 
 ## License
 
