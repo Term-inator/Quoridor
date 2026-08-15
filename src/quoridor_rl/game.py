@@ -11,12 +11,40 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum
 from typing import Self, TypeAlias
 
-_BOARD_MASK = (1 << 81) - 1
-_RIGHT_COLUMN_MASK = sum(1 << (row * 9 + 8) for row in range(9))
-_GOAL_ROW_MASKS = ((1 << 9) - 1, ((1 << 9) - 1) << 72)
-# 两个整数分别记录“上下相邻格”和“左右相邻格”之间被墙阻断的边。使用位图既能
-# 避免在寻路内层循环构造对象，也能一次扩展一整层 BFS 前沿。
+from quoridor_rl.constants import (
+    BOARD_SIZE,
+    INITIAL_WALLS_PER_PLAYER,
+    WALL_ANCHOR_GRID_SIZE,
+)
+
+_BOARD_SQUARE_COUNT = BOARD_SIZE**2
+"""棋盘位图的有效位数；格 ``(row, col)`` 对应 ``row * BOARD_SIZE + col`` 位。"""
+
+_LAST_BOARD_INDEX = BOARD_SIZE - 1
+"""棋盘行列索引的最大有效值。"""
+
+_BOARD_MASK = (1 << _BOARD_SQUARE_COUNT) - 1
+"""棋盘全部有效位均为 1 的掩码，用于清除位移到棋盘外的位。"""
+
+_RIGHT_COLUMN_MASK = sum(
+    1 << (row * BOARD_SIZE + _LAST_BOARD_INDEX) for row in range(BOARD_SIZE)
+)
+"""棋盘最右列的位图掩码，用于阻止水平位移跨行回绕。"""
+
+_FIRST_ROW_MASK = (1 << BOARD_SIZE) - 1
+"""棋盘首行的位图掩码。"""
+
+_GOAL_ROW_MASKS = (
+    _FIRST_ROW_MASK,
+    _FIRST_ROW_MASK << (BOARD_SIZE * _LAST_BOARD_INDEX),
+)
+"""按玩家枚举值索引的目标行位图掩码。"""
 BlockedEdges: TypeAlias = tuple[int, int]
+"""水平墙与竖直墙的阻断边位图。
+
+第一个位图的第 ``i`` 位表示格 ``i`` 与其下方格之间是否阻断；第二个位图的第
+``i`` 位表示格 ``i`` 与其右侧格之间是否阻断。
+"""
 
 
 class Player(IntEnum):
@@ -47,8 +75,10 @@ class Square:
         """拒绝布尔值、浮点数及越界坐标，保证值对象始终有效。"""
         if type(self.row) is not int or type(self.col) is not int:
             raise TypeError("square coordinates must be integers")
-        if not (0 <= self.row < 9 and 0 <= self.col < 9):
-            raise ValueError("square coordinates must each be between 0 and 8")
+        if not (0 <= self.row < BOARD_SIZE and 0 <= self.col < BOARD_SIZE):
+            raise ValueError(
+                f"square coordinates must each be between 0 and {_LAST_BOARD_INDEX}"
+            )
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -62,8 +92,14 @@ class WallAnchor:
         """在构造边界检查锚点，避免非法坐标进入规则计算。"""
         if type(self.row) is not int or type(self.col) is not int:
             raise TypeError("wall anchor coordinates must be integers")
-        if not (0 <= self.row < 8 and 0 <= self.col < 8):
-            raise ValueError("wall anchor coordinates must each be between 0 and 7")
+        if not (
+            0 <= self.row < WALL_ANCHOR_GRID_SIZE
+            and 0 <= self.col < WALL_ANCHOR_GRID_SIZE
+        ):
+            raise ValueError(
+                "wall anchor coordinates must each be between 0 and "
+                f"{WALL_ANCHOR_GRID_SIZE - 1}"
+            )
 
 
 class Orientation(Enum):
@@ -134,8 +170,11 @@ class Position:
     def initial(cls) -> Self:
         """创建官方双人规则的初始局面：双方各十堵墙、棋子位于底边中央。"""
         return cls._from_parts(
-            pawns=(Square(8, 4), Square(0, 4)),
-            walls_remaining=(10, 10),
+            pawns=(
+                Square(_LAST_BOARD_INDEX, BOARD_SIZE // 2),
+                Square(0, BOARD_SIZE // 2),
+            ),
+            walls_remaining=(INITIAL_WALLS_PER_PLAYER, INITIAL_WALLS_PER_PLAYER),
             placed_walls_by_player=(frozenset(), frozenset()),
             to_move=Player.PLAYER_0,
             winner=None,
@@ -214,8 +253,8 @@ class Position:
         blocked_edges = _blocked_edges(placed_walls)
         walls: list[Action] = []
         for orientation in (Orientation.HORIZONTAL, Orientation.VERTICAL):
-            for row in range(8):
-                for col in range(8):
+            for row in range(WALL_ANCHOR_GRID_SIZE):
+                for col in range(WALL_ANCHOR_GRID_SIZE):
                     candidate = PlaceWall(WallAnchor(row, col), orientation)
                     if not self._wall_conflicts(
                         candidate, placed_walls
@@ -238,6 +277,7 @@ class Position:
         if placed_walls is None:
             placed_walls = self._all_placed_walls()
         for placed in placed_walls:
+            # 候选墙与已有墙同向且锚点相邻或重叠，或不同向但锚点相同，则冲突。
             if candidate.orientation is placed.orientation:
                 if candidate.orientation is Orientation.HORIZONTAL:
                     if (
@@ -272,14 +312,6 @@ class Position:
             for player in Player
         )
 
-    def _has_path(
-        self,
-        player: Player,
-        walls: frozenset[PlaceWall],
-    ) -> bool:
-        """返回玩家在给定墙布局中是否仍能抵达目标行。"""
-        return self._shortest_path_length(player, walls) is not None
-
     def _shortest_path_length(
         self,
         player: Player,
@@ -298,7 +330,7 @@ class Position:
         ``frontier`` 的每一位代表本层可达的一个格子；四次移位同时生成整层的四向
         邻居，再用阻断边和已访问集合过滤。路径不存在时返回 ``None``。
         """
-        start = self._pawns[player].row * 9 + self._pawns[player].col
+        start = self._pawns[player].row * BOARD_SIZE + self._pawns[player].col
         frontier = 1 << start
         visited = frontier
         goal = _GOAL_ROW_MASKS[player]
@@ -308,10 +340,14 @@ class Position:
         while frontier:
             if frontier & goal:
                 return distance
+            # 索引减 1 移到左格；再删除跨行落到最右列及被竖墙阻断的目标。
             left = (frontier >> 1) & ~_RIGHT_COLUMN_MASK & ~vertical
+            # 先删除位于最右列或右侧有竖墙的起点；索引加 1 移到右格并限制在棋盘内。
             right = ((frontier & ~_RIGHT_COLUMN_MASK & ~vertical) << 1) & _BOARD_MASK
-            up = (frontier >> 9) & ~horizontal
-            down = ((frontier & ~horizontal) << 9) & _BOARD_MASK
+            # 索引减一行移到上格；再删除下方有横墙的目标。
+            up = (frontier >> BOARD_SIZE) & ~horizontal
+            # 先删除下方有横墙的起点；索引加一行移到下格并限制在棋盘内。
+            down = ((frontier & ~horizontal) << BOARD_SIZE) & _BOARD_MASK
             frontier = (left | right | up | down) & ~visited
             visited |= frontier
             distance += 1
@@ -411,7 +447,7 @@ class Position:
                 current_player
             ] | {action}
 
-        goal_row = 0 if current_player is Player.PLAYER_0 else 8
+        goal_row = 0 if current_player is Player.PLAYER_0 else _LAST_BOARD_INDEX
         winner = (
             current_player
             if isinstance(action, MovePawn) and action.target.row == goal_row
@@ -432,7 +468,7 @@ class Position:
 
 def _coordinates_on_board(row: int, col: int) -> bool:
     """判断坐标是否落在 9×9 棋盘内。"""
-    return 0 <= row < 9 and 0 <= col < 9
+    return 0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE
 
 
 def _is_blocked_by(
@@ -441,8 +477,8 @@ def _is_blocked_by(
     second: Square,
 ) -> bool:
     """通过阻断边位图判断两个相邻格之间是否有墙。"""
-    first_id = first.row * 9 + first.col
-    second_id = second.row * 9 + second.col
+    first_id = first.row * BOARD_SIZE + first.col
+    second_id = second.row * BOARD_SIZE + second.col
     horizontal, vertical = _blocked_edges(walls)
     upper_or_left = min(first_id, second_id)
     mask = horizontal if first.row != second.row else vertical
@@ -452,16 +488,18 @@ def _is_blocked_by(
 def _blocked_edges(walls: frozenset[PlaceWall]) -> BlockedEdges:
     """把墙集合编码为水平、垂直两张阻断边位图。
 
-    位索引采用对应边的上方格或左侧格编号。一堵墙跨两条边，因此每次设置两位。
+    水平位图的第 ``i`` 位表示格 ``i`` 与其下方格之间是否阻断；垂直位图的第
+    ``i`` 位表示格 ``i`` 与其右侧格之间是否阻断。一堵墙跨两条边，因此设置两位。
     """
     horizontal = 0
     vertical = 0
     for wall in walls:
         row = wall.anchor.row
         col = wall.anchor.col
-        upper_left = row * 9 + col
+        # 计算墙的左上角格在棋盘位图中的索引，作为阻断边位图的起始位。
+        upper_left = row * BOARD_SIZE + col
         if wall.orientation is Orientation.HORIZONTAL:
             horizontal |= (1 << upper_left) | (1 << (upper_left + 1))
         else:
-            vertical |= (1 << upper_left) | (1 << (upper_left + 9))
+            vertical |= (1 << upper_left) | (1 << (upper_left + BOARD_SIZE))
     return horizontal, vertical

@@ -9,6 +9,7 @@ import torch
 from torch import nn
 
 from experiments.alphazero.model import PolicyValueNetwork
+from quoridor_rl.codec import ActionCodec, ObservationCodec
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +73,12 @@ class ReplayBuffer:
         if capacity <= 0:
             raise ValueError("replay capacity must be positive")
         self.capacity = capacity
-        self._observations = np.empty((capacity, 6, 9, 9), dtype=np.uint8)
-        self._policies = np.empty((capacity, 209), dtype=np.float16)
+        self._observations = np.empty(
+            (capacity, *ObservationCodec.shape), dtype=np.uint8
+        )
+        self._policies = np.empty(
+            (capacity, ActionCodec.action_count), dtype=np.float16
+        )
         self._values = np.empty(capacity, dtype=np.float32)
         self._size = 0
         self._position = 0
@@ -85,10 +90,11 @@ class ReplayBuffer:
 
     def add(self, example: TrainingExample) -> None:
         """校验搜索目标并写入环形缓冲，满容量后覆盖最旧样本。"""
-        if example.observation.shape != (6, 9, 9):
-            raise ValueError("observation must have shape (6, 9, 9)")
-        if example.policy.shape != (209,):
-            raise ValueError("policy must have shape (209,)")
+        if example.observation.shape != ObservationCodec.shape:
+            raise ValueError(f"observation must have shape {ObservationCodec.shape}")
+        expected_policy_shape = (ActionCodec.action_count,)
+        if example.policy.shape != expected_policy_shape:
+            raise ValueError(f"policy must have shape {expected_policy_shape}")
         if not np.isclose(example.policy.sum(), 1.0):
             raise ValueError("policy target must sum to one")
         if not -1 <= example.value <= 1:

@@ -9,6 +9,7 @@ import torch
 from torch import nn
 
 from experiments.dqn.model import MaskedQNetwork
+from quoridor_rl.codec import ActionCodec, ObservationCodec
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,12 +85,20 @@ class ReplayBuffer:
         if capacity <= 0:
             raise ValueError("replay capacity must be positive")
         self.capacity = capacity
-        self._observations = torch.empty((capacity, 6, 9, 9), dtype=torch.uint8)
-        self._action_masks = torch.empty((capacity, 209), dtype=torch.bool)
+        self._observations = torch.empty(
+            (capacity, *ObservationCodec.shape), dtype=torch.uint8
+        )
+        self._action_masks = torch.empty(
+            (capacity, ActionCodec.action_count), dtype=torch.bool
+        )
         self._actions = torch.empty(capacity, dtype=torch.int64)
         self._rewards = torch.empty(capacity, dtype=torch.float32)
-        self._next_observations = torch.empty((capacity, 6, 9, 9), dtype=torch.uint8)
-        self._next_action_masks = torch.empty((capacity, 209), dtype=torch.bool)
+        self._next_observations = torch.empty(
+            (capacity, *ObservationCodec.shape), dtype=torch.uint8
+        )
+        self._next_action_masks = torch.empty(
+            (capacity, ActionCodec.action_count), dtype=torch.bool
+        )
         self._done = torch.empty(capacity, dtype=torch.bool)
         self._size = 0
         self._position = 0
@@ -134,8 +143,8 @@ class ReplayBuffer:
 
 def _pack_observation(observation: torch.Tensor) -> torch.Tensor:
     """校验单局观测形状并无损量化到 CPU ``uint8``。"""
-    if observation.shape != (6, 9, 9):
-        raise ValueError("observation must have shape (6, 9, 9)")
+    if observation.shape != ObservationCodec.shape:
+        raise ValueError(f"observation must have shape {ObservationCodec.shape}")
     return observation.mul(10).round().to(dtype=torch.uint8, device="cpu")
 
 

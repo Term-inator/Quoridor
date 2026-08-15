@@ -27,6 +27,7 @@ from experiments.dqn.training import (
     ReplayBuffer,
     TransitionBatch,
 )
+from quoridor_rl.codec import ActionCodec, ObservationCodec
 
 
 @dataclass(frozen=True, slots=True)
@@ -629,20 +630,24 @@ def _overfit_fixed_batch(updater: DQNUpdater, device: torch.device) -> bool:
         parameter.data.zero_()
     updater.sync_target()
     size = 16
-    action_masks = torch.zeros((size, 209), dtype=torch.bool)
+    action_masks = torch.zeros((size, ActionCodec.action_count), dtype=torch.bool)
     action_masks[:, :3] = True
     batch = TransitionBatch(
-        observations=torch.zeros((size, 6, 9, 9)),
+        observations=torch.zeros((size, *ObservationCodec.shape)),
         action_masks=action_masks,
         actions=torch.ones(size, dtype=torch.int64),
         rewards=torch.ones(size),
-        next_observations=torch.zeros((size, 6, 9, 9)),
-        next_action_masks=torch.zeros((size, 209), dtype=torch.bool),
+        next_observations=torch.zeros((size, *ObservationCodec.shape)),
+        next_action_masks=torch.zeros(
+            (size, ActionCodec.action_count), dtype=torch.bool
+        ),
         done=torch.ones(size, dtype=torch.bool),
     )
     for _ in range(120):
         updater.update(batch)
-    values = updater.online(torch.zeros((1, 6, 9, 9), device=device))[0, :3]
+    values = updater.online(torch.zeros((1, *ObservationCodec.shape), device=device))[
+        0, :3
+    ]
     return bool(values.argmax().item() == 1 and values[1].item() > 0.5)
 
 

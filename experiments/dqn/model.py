@@ -6,12 +6,13 @@ import torch
 from torch import nn
 
 from experiments.model import board_encoder
+from quoridor_rl.codec import ActionCodec
 
 
 class MaskedQNetwork(nn.Module):
     """估计全部动作价值，并保证选择结果只落在合法动作中。"""
 
-    def __init__(self, action_count: int = 209) -> None:
+    def __init__(self, action_count: int = ActionCodec.action_count) -> None:
         """以共享棋盘编码器连接 209 维线性 Q 值头。"""
         super().__init__()
         self.features = board_encoder()

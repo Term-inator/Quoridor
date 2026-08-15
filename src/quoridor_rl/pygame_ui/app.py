@@ -18,6 +18,11 @@ from typing import Protocol
 import pygame
 
 from quoridor_rl.agents import RandomAgent
+from quoridor_rl.constants import (
+    BOARD_SIZE,
+    INITIAL_WALLS_PER_PLAYER,
+    WALL_ANCHOR_GRID_SIZE,
+)
 from quoridor_rl.game import (
     Action,
     IllegalActionError,
@@ -324,7 +329,7 @@ class BoardGeometry:
         inset = max(18.0, rect.width * 0.047)
         usable = rect.width - inset * 2
         gap_ratio = 0.18
-        cell = usable / (9 + 8 * gap_ratio)
+        cell = usable / (BOARD_SIZE + WALL_ANCHOR_GRID_SIZE * gap_ratio)
         return cls(rect, cell, cell * gap_ratio, rect.left + inset, rect.top + inset)
 
     @property
@@ -374,7 +379,11 @@ class BoardGeometry:
             return None
         col = round((point[0] - self.origin_x - self.cell - self.gap / 2) / self.pitch)
         row = round((point[1] - self.origin_y - self.cell - self.gap / 2) / self.pitch)
-        return WallAnchor(max(0, min(7, row)), max(0, min(7, col)))
+        last_anchor_index = WALL_ANCHOR_GRID_SIZE - 1
+        return WallAnchor(
+            max(0, min(last_anchor_index, row)),
+            max(0, min(last_anchor_index, col)),
+        )
 
 
 class PygameApplication:
@@ -1217,8 +1226,8 @@ class PygameApplication:
                 if isinstance(action, MovePawn)
             }
         )
-        for row in range(9):
-            for col in range(9):
+        for row in range(BOARD_SIZE):
+            for col in range(BOARD_SIZE):
                 square = Square(row, col)
                 rect = self._board.square_rect(square)
                 pygame.draw.rect(surface, COLORS["board"], rect, border_radius=5)
@@ -1231,15 +1240,16 @@ class PygameApplication:
                     )
 
         coordinate_font = self._font(max(13, round(self._board.cell * 0.25)))
-        for col, label in enumerate("abcdefghi"):
+        for col in range(BOARD_SIZE):
+            label = chr(ord("a") + col)
             text = coordinate_font.render(label, True, COLORS["panel"])
-            cell = self._board.square_rect(Square(8, col))
+            cell = self._board.square_rect(Square(BOARD_SIZE - 1, col))
             surface.blit(
                 text,
                 (cell.centerx - text.get_width() // 2, cell.bottom + 3),
             )
-        for row in range(9):
-            text = coordinate_font.render(str(9 - row), True, COLORS["panel"])
+        for row in range(BOARD_SIZE):
+            text = coordinate_font.render(str(BOARD_SIZE - row), True, COLORS["panel"])
             cell = self._board.square_rect(Square(row, 0))
             surface.blit(
                 text,
@@ -1467,7 +1477,7 @@ class PygameApplication:
             surface.blit(label, (card.left + 11, card.top + 43))
             remaining = position.walls_remaining[player]
             count = self._font(22).render(
-                f"{remaining} / 10",
+                f"{remaining} / {INITIAL_WALLS_PER_PLAYER}",
                 True,
                 player_color,
             )
@@ -1477,7 +1487,8 @@ class PygameApplication:
             segment_left = card.left + 10
             segment_width = max(
                 3,
-                (card.width - 20 - segment_gap * 9) // 10,
+                (card.width - 20 - segment_gap * (INITIAL_WALLS_PER_PLAYER - 1))
+                // INITIAL_WALLS_PER_PLAYER,
             )
             segment_top = card.bottom - 28
             segments = tuple(
@@ -1487,7 +1498,7 @@ class PygameApplication:
                     segment_width,
                     14,
                 )
-                for index in range(10)
+                for index in range(INITIAL_WALLS_PER_PLAYER)
             )
             self._wall_inventory_segments[player] = segments
             for index, segment in enumerate(segments):
@@ -1737,12 +1748,12 @@ def _player_color(player: Player) -> pygame.Color:
 
 def _human_square(square: Square) -> str:
     """把内部棋格坐标转换为 ``a1``～``i9``。"""
-    return f"{chr(ord('a') + square.col)}{9 - square.row}"
+    return f"{chr(ord('a') + square.col)}{BOARD_SIZE - square.row}"
 
 
 def _human_anchor(anchor: WallAnchor) -> str:
     """把内部墙锚点转换为 ``a1``～``h8``。"""
-    return f"{chr(ord('a') + anchor.col)}{8 - anchor.row}"
+    return f"{chr(ord('a') + anchor.col)}{WALL_ANCHOR_GRID_SIZE - anchor.row}"
 
 
 def _action_history_text(

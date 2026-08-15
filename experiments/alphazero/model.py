@@ -6,12 +6,13 @@ import torch
 from torch import nn
 
 from experiments.model import board_encoder
+from quoridor_rl.codec import ActionCodec
 
 
 class PolicyValueNetwork(nn.Module):
     """共享紧凑棋盘特征，同时预测动作 logits 和有界终局价值。"""
 
-    def __init__(self, action_count: int = 209) -> None:
+    def __init__(self, action_count: int = ActionCodec.action_count) -> None:
         """创建共享编码器、固定动作策略头和标量价值头。"""
         super().__init__()
         self.features = board_encoder()

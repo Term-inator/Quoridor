@@ -7,12 +7,13 @@ from torch import nn
 from torch.distributions import Categorical
 
 from experiments.model import board_encoder
+from quoridor_rl.codec import ActionCodec
 
 
 class MaskedActorCritic(nn.Module):
     """共享紧凑卷积特征，并分别输出策略 logits 与状态价值。"""
 
-    def __init__(self, action_count: int = 209) -> None:
+    def __init__(self, action_count: int = ActionCodec.action_count) -> None:
         """创建共享棋盘编码器、固定动作策略头和标量价值头。"""
         super().__init__()
         self.features = board_encoder()

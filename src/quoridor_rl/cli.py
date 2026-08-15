@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Sequence
+from string import ascii_lowercase
 
 from quoridor_rl.agents import RandomAgent
+from quoridor_rl.constants import BOARD_SIZE, WALL_ANCHOR_GRID_SIZE
 from quoridor_rl.game import (
     Action,
     IllegalActionError,
@@ -66,6 +68,11 @@ CLI_TEXT = {
 }
 
 assert CLI_TEXT[Language.CHINESE].keys() == CLI_TEXT[Language.ENGLISH].keys()
+
+_BOARD_FILES = ascii_lowercase[:BOARD_SIZE]
+_BOARD_RANKS = "".join(str(rank) for rank in range(1, BOARD_SIZE + 1))
+_WALL_FILES = ascii_lowercase[:WALL_ANCHOR_GRID_SIZE]
+_WALL_RANKS = "".join(str(rank) for rank in range(1, WALL_ANCHOR_GRID_SIZE + 1))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -188,9 +195,9 @@ def _parse_square(
     language: Language = Language.CHINESE,
 ) -> Square:
     """把人类棋盘坐标（如 ``e2``）转换成内部棋子坐标。"""
-    if len(value) != 2 or value[0] not in "abcdefghi" or value[1] not in "123456789":
+    if len(value) != 2 or value[0] not in _BOARD_FILES or value[1] not in _BOARD_RANKS:
         raise ValueError(CLI_TEXT[language]["square_error"])
-    return Square(9 - int(value[1]), ord(value[0]) - ord("a"))
+    return Square(BOARD_SIZE - int(value[1]), ord(value[0]) - ord("a"))
 
 
 def _parse_anchor(
@@ -199,17 +206,20 @@ def _parse_anchor(
     language: Language = Language.CHINESE,
 ) -> WallAnchor:
     """把人类棋盘坐标转换成 8×8 的内部墙锚点坐标。"""
-    if len(value) != 2 or value[0] not in "abcdefgh" or value[1] not in "12345678":
+    if len(value) != 2 or value[0] not in _WALL_FILES or value[1] not in _WALL_RANKS:
         raise ValueError(CLI_TEXT[language]["anchor_error"])
-    return WallAnchor(8 - int(value[1]), ord(value[0]) - ord("a"))
+    return WallAnchor(WALL_ANCHOR_GRID_SIZE - int(value[1]), ord(value[0]) - ord("a"))
 
 
 def _format_action(action: Action) -> str:
     """把语义动作格式化成可再次输入终端的命令。"""
     if isinstance(action, MovePawn):
-        square = f"{chr(ord('a') + action.target.col)}{9 - action.target.row}"
+        square = f"{chr(ord('a') + action.target.col)}{BOARD_SIZE - action.target.row}"
         return f"move {square}"
-    anchor = f"{chr(ord('a') + action.anchor.col)}{8 - action.anchor.row}"
+    anchor = (
+        f"{chr(ord('a') + action.anchor.col)}"
+        f"{WALL_ANCHOR_GRID_SIZE - action.anchor.row}"
+    )
     return f"wall {anchor} {action.orientation.value}"
 
 

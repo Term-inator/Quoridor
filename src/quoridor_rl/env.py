@@ -61,20 +61,30 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
             raise TypeError("language must be a Language value")
 
         self.max_plies = max_plies
+        """未决对局触发截断前允许执行的最大行动数。"""
+
         self.render_mode = render_mode
+        """当前渲染模式；``None`` 表示不渲染，``ansi`` 表示文本棋盘。"""
+
         self.language = language
+        """文本渲染使用的界面语言。"""
+
         self.possible_agents = ["player_0", "player_1"]
+        """环境在所有对局中可能出现的固定智能体名称。"""
+
         self.action_spaces: dict[Agent, spaces.Discrete] = {
             agent: spaces.Discrete(ActionCodec.action_count)
             for agent in self.possible_agents
         }
+        """按智能体名称索引的固定离散动作空间。"""
+
         self.observation_spaces = {
             agent: spaces.Dict(
                 {
                     "observation": spaces.Box(
                         low=0.0,
                         high=1.0,
-                        shape=(6, 9, 9),
+                        shape=ObservationCodec.shape,
                         dtype=np.float32,
                     ),
                     "action_mask": spaces.MultiBinary(ActionCodec.action_count),
@@ -82,18 +92,43 @@ class QuoridorEnv(AECEnv[Agent, Observation, int | None]):
             )
             for agent in self.possible_agents
         }
+        """按智能体名称索引的规范观测与动作掩码空间。"""
+
         self._codec = ActionCodec()
+        """语义动作与离散动作编号之间的转换器。"""
+
         self._observation_codec = ObservationCodec()
+        """规则局面到规范视角观测张量的转换器。"""
+
         self._position = Position.initial()
+        """当前不可变的围墙棋规则局面。"""
+
         self.plies = 0
+        """当前对局已经执行的行动数。"""
+
         self.agents: list[Agent] = []
+        """当前 AEC 对局中仍需处理的智能体。"""
+
         self.agent_selection = "player_0"
+        """当前应当接收动作的智能体名称。"""
+
         self.rewards: dict[Agent, float] = {}
+        """最近一次环境转换为各智能体产生的即时奖励。"""
+
         self._cumulative_rewards: dict[Agent, float] = {}
+        """PettingZoo 为每个智能体累计、供 ``last`` 返回的奖励。"""
+
         self.terminations: dict[Agent, bool] = {}
+        """各智能体是否因胜负或非法动作而自然终止。"""
+
         self.truncations: dict[Agent, bool] = {}
+        """各智能体是否因达到行动上限而被截断。"""
+
         self.infos: dict[Agent, dict[str, Any]] = {}
+        """按智能体名称索引的辅助诊断信息。"""
+
         self._agent_selector = AgentSelector(self.possible_agents)
+        """维护两个智能体固定轮流行动顺序的 PettingZoo 选择器。"""
 
     def reset(
         self,

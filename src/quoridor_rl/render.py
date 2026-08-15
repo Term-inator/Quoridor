@@ -1,5 +1,6 @@
 """环境与命令行游戏共用的纯文本棋盘渲染。"""
 
+from quoridor_rl.constants import BOARD_SIZE, WALL_ANCHOR_GRID_SIZE
 from quoridor_rl.game import Orientation, Player, Position
 from quoridor_rl.language import Language
 
@@ -23,9 +24,9 @@ def render_ascii(
         | position.placed_walls_by_player[Player.PLAYER_1]
     )
 
-    for row in range(9):
+    for row in range(BOARD_SIZE):
         cells: list[str] = []
-        for col in range(9):
+        for col in range(BOARD_SIZE):
             marker = "."
             if (
                 position.pawns[Player.PLAYER_0].row == row
@@ -38,7 +39,7 @@ def render_ascii(
             ):
                 marker = "2"
             cells.append(f" {marker} ")
-            if col < 8:
+            if col < WALL_ANCHOR_GRID_SIZE:
                 blocked = any(
                     wall.orientation is Orientation.VERTICAL
                     and wall.anchor.col == col
@@ -46,11 +47,11 @@ def render_ascii(
                     for wall in walls
                 )
                 cells.append("|" if blocked else " ")
-        lines.append(f"{9 - row:>2}  {''.join(cells)}")
+        lines.append(f"{BOARD_SIZE - row:>2}  {''.join(cells)}")
 
-        if row < 8:
+        if row < WALL_ANCHOR_GRID_SIZE:
             horizontal_segments = []
-            for col in range(9):
+            for col in range(BOARD_SIZE):
                 blocked = any(
                     wall.orientation is Orientation.HORIZONTAL
                     and wall.anchor.row == row
@@ -60,7 +61,8 @@ def render_ascii(
                 horizontal_segments.append("---" if blocked else "   ")
             lines.append(f"    {'+'.join(horizontal_segments)}")
 
-    lines.append("     a   b   c   d   e   f   g   h   i")
+    files = "   ".join(chr(ord("a") + col) for col in range(BOARD_SIZE))
+    lines.append(f"     {files}")
     remaining = position.walls_remaining
     if language is Language.CHINESE:
         lines.append(f"墙数：玩家 1 = {remaining[0]}，玩家 2 = {remaining[1]}")
