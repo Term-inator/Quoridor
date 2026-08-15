@@ -16,6 +16,7 @@ from quoridor_rl.game import Action, MovePawn, Position
 @dataclass(slots=True)
 class _Edge:
     """父节点上的动作边，保存先验、访问统计及可复用子树。"""
+
     action: Action
     prior: float
     visit_count: int = 0
@@ -31,6 +32,7 @@ class _Edge:
 @dataclass(slots=True)
 class _Node:
     """一个规则局面及其惰性展开的出边。"""
+
     position: Position
     children: dict[int, _Edge] = field(default_factory=dict)
     expanded: bool = False
@@ -40,6 +42,7 @@ class _Node:
 @dataclass(frozen=True, slots=True)
 class SearchResult:
     """一次根搜索产生的动作、访问策略和性能诊断。"""
+
     action_id: int
     policy: np.ndarray
     root_value: float

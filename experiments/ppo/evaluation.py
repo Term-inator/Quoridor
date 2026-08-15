@@ -15,6 +15,7 @@ from quoridor_rl import env
 @dataclass(frozen=True, slots=True)
 class RoleResult:
     """策略担任固定先后手角色时的结果计数。"""
+
     games: int
     wins: int
     losses: int
@@ -24,6 +25,7 @@ class RoleResult:
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
     """汇总先后手结果、非法动作及是否完成计划局数。"""
+
     as_player_0: RoleResult
     as_player_1: RoleResult
     illegal_actions: int

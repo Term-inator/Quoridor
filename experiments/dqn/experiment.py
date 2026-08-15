@@ -33,6 +33,7 @@ from quoridor_rl.codec import ActionCodec, ObservationCodec
 @dataclass(frozen=True, slots=True)
 class ExperimentArtifacts:
     """一次实验生成的核心文件路径，可选包含跨算法对比。"""
+
     metrics_path: Path
     summary_path: Path
     curve_path: Path
@@ -44,6 +45,7 @@ class ExperimentArtifacts:
 @dataclass(frozen=True, slots=True)
 class _TrainingStep:
     """消费一次采集批次后的计数、优化指标和周期性操作标记。"""
+
     transition_count: int
     update_count: int
     metrics: dict[str, float]

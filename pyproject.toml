@@ -3,8 +3,24 @@ name = "quoridor-rl"
 version = "0.1.0"
 description = "A tested two-player Quoridor environment for reinforcement learning"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Term-inator", email = "1121745627@qq.com" }
+]
+keywords = ["quoridor", "reinforcement-learning", "pettingzoo", "gymnasium"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Games/Entertainment :: Board Games",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
 ]
 requires-python = ">=3.11,<3.15"
 dependencies = [
@@ -33,6 +49,11 @@ train = [
 [project.scripts]
 quoridor = "quoridor_rl.cli:main"
 quoridor-pygame = "quoridor_rl.pygame_ui.entry:main"
+
+[project.urls]
+Homepage = "https://github.com/Term-inator/Quoridor"
+Repository = "https://github.com/Term-inator/Quoridor"
+Issues = "https://github.com/Term-inator/Quoridor/issues"
 
 [build-system]
 requires = ["uv_build>=0.11.26,<0.12.0"]

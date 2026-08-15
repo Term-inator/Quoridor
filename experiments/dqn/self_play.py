@@ -20,6 +20,7 @@ AGENTS = ("player_0", "player_1")
 @dataclass(frozen=True, slots=True)
 class EpisodeStats:
     """一局结束后用于实验汇总的学习方视角统计。"""
+
     episode: int
     learner_agent: str
     plies: int
@@ -32,6 +33,7 @@ class EpisodeStats:
 @dataclass(frozen=True, slots=True)
 class Collection:
     """一次采集返回的学习转移和完整对局统计。"""
+
     transitions: list[Transition]
     episodes: list[EpisodeStats]
 
@@ -39,6 +41,7 @@ class Collection:
 @dataclass(slots=True)
 class _PendingTransition:
     """等待对手行动结束后才能补齐下一状态的学习方决策。"""
+
     observation: torch.Tensor
     action_mask: torch.Tensor
     action: int
@@ -48,6 +51,7 @@ class _PendingTransition:
 @dataclass(slots=True)
 class _Slot:
     """一个并行轮询的环境槽及其局内采集状态。"""
+
     environment: PotentialRewardWrapper
     learner_agent: str
     opponent: MaskedQNetwork | None

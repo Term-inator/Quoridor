@@ -15,6 +15,7 @@ from quoridor_rl import env
 @dataclass(frozen=True, slots=True)
 class RoleResult:
     """模型担任一个固定先后手角色时的结果计数。"""
+
     games: int
     wins: int
     losses: int
@@ -24,6 +25,7 @@ class RoleResult:
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
     """合并两个角色、并记录完整性与非法动作的评估结果。"""
+
     as_player_0: RoleResult
     as_player_1: RoleResult
     illegal_actions: int

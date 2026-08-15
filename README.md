@@ -1,6 +1,6 @@
 # Quoridor RL
 
-[English](README.en.md) | 中文
+[English](https://github.com/Term-inator/Quoridor/blob/main/README.en.md) | 中文
 
 一个遵循官方标准双人规则的围墙棋（Quoridor）Python 实现，包含：
 
@@ -11,7 +11,21 @@
 - 人类对人类、人类对随机智能体的终端对局；
 - 可选的中英文 Pygame 桌面界面，支持本地游玩和随机智能体观战。
 
-首版固定为 9×9 棋盘、每人 10 面墙，不包含四人制、可变棋盘、训练算法或奖励塑形。项目暂未发布到 PyPI。
+首版固定为 9×9 棋盘、每人 10 面墙，不包含四人制、可变棋盘、训练算法或奖励塑形。
+
+## 安装
+
+基础包支持 Python 3.11–3.14：
+
+```bash
+pip install quoridor-rl
+```
+
+需要 Pygame 图形界面时安装可选依赖：
+
+```bash
+pip install "quoridor-rl[pygame]"
+```
 
 ## 开发环境
 
@@ -220,8 +234,10 @@ uv run ruff format --check .
 uv run mypy src
 ```
 
+维护者发布流程见 [发布文档](https://github.com/Term-inator/Quoridor/blob/main/docs/releasing.md)。
+
 `tests/package/` 覆盖普通移动、直跳、墙/边界受阻后的斜跳、墙冲突、双方路径保留、终局、动作编码往返、canonical observation、AEC 生命周期、随机完整对局和 CLI。PettingZoo 官方 `api_test` 也包含在这一层。`tests/pygame/` 验证可选图形界面，`tests/experiments/` 验证不会随包发布的训练代码；实验胜率不是发行门槛。
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Term-inator/Quoridor/blob/main/LICENSE)

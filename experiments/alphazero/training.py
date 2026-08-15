@@ -15,6 +15,7 @@ from quoridor_rl.codec import ActionCodec, ObservationCodec
 @dataclass(frozen=True, slots=True)
 class AlphaZeroConfig:
     """自我对弈、MCTS、课程学习、回放与优化超参数。"""
+
     seed: int = 0
     max_plies: int = 512
     simulations_per_move: int = 32
@@ -40,6 +41,7 @@ class AlphaZeroConfig:
 @dataclass(frozen=True, slots=True)
 class TrainingExample:
     """一个规范观测、MCTS 访问策略和最终胜负价值标签。"""
+
     observation: np.ndarray
     policy: np.ndarray
     value: float
@@ -48,6 +50,7 @@ class TrainingExample:
 @dataclass(frozen=True, slots=True)
 class TrainingBatch:
     """可整体迁移设备的 AlphaZero 训练批次。"""
+
     observations: torch.Tensor
     policies: torch.Tensor
     values: torch.Tensor

@@ -93,8 +93,7 @@ def test_legal_move_targets_follow_the_current_player_color() -> None:
     application.draw(surface)
     player_0_target = Square(7, 4)
     assert (
-        surface.get_at(application.square_rect(player_0_target).center)
-        == COLORS["p0"]
+        surface.get_at(application.square_rect(player_0_target).center) == COLORS["p0"]
     )
 
     application.handle_event(
@@ -107,8 +106,7 @@ def test_legal_move_targets_follow_the_current_player_color() -> None:
     application.draw(surface)
     player_1_target = Square(1, 4)
     assert (
-        surface.get_at(application.square_rect(player_1_target).center)
-        == COLORS["p1"]
+        surface.get_at(application.square_rect(player_1_target).center) == COLORS["p1"]
     )
 
 

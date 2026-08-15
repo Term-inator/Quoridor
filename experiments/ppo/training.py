@@ -26,6 +26,7 @@ AGENTS = ("player_0", "player_1")
 @dataclass(frozen=True, slots=True)
 class PPOConfig:
     """PPO 环境、采样、GAE 和优化相关超参数。"""
+
     seed: int = 0
     environment_count: int = 4
     rollout_size: int = 4096
@@ -44,6 +45,7 @@ class PPOConfig:
 @dataclass(frozen=True, slots=True)
 class Transition:
     """某玩家两个相邻决策点之间的一条 on-policy 转移。"""
+
     trajectory: int
     agent: str
     observation: torch.Tensor
@@ -60,6 +62,7 @@ class Transition:
 @dataclass(frozen=True, slots=True)
 class EpisodeStats:
     """完整自我对弈局的长度、结果和双方塑形回报。"""
+
     plies: int
     winner: str | None
     terminated: bool
@@ -70,6 +73,7 @@ class EpisodeStats:
 @dataclass(frozen=True, slots=True)
 class Rollout:
     """一次采样阶段产生的完整转移与对局集合。"""
+
     transitions: list[Transition]
     episodes: list[EpisodeStats]
 
@@ -169,6 +173,7 @@ class PPOUpdater:
 
 class _PolicyAdapter(nn.Module):
     """把联合模型适配为 TorchRL 只返回策略 logits 的模块。"""
+
     def __init__(self, model: MaskedActorCritic) -> None:
         super().__init__()
         self.model = model
@@ -183,6 +188,7 @@ class _PolicyAdapter(nn.Module):
 
 class _ValueAdapter(nn.Module):
     """把联合模型适配为 TorchRL 要求末维为一的价值模块。"""
+
     def __init__(self, model: MaskedActorCritic) -> None:
         super().__init__()
         self.model = model
@@ -194,6 +200,7 @@ class _ValueAdapter(nn.Module):
 @dataclass(slots=True)
 class _PendingTransition:
     """等待同一玩家下一决策点以补齐奖励和下一价值的转移。"""
+
     trajectory: int
     agent: str
     observation: torch.Tensor
@@ -207,6 +214,7 @@ class _PendingTransition:
 @dataclass(slots=True)
 class _EnvironmentSlot:
     """一个 TorchRL 包装环境及其未闭合转移和局统计。"""
+
     index: int
     aec: PotentialRewardWrapper
     torch_env: PettingZooWrapper

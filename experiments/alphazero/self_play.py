@@ -18,6 +18,7 @@ from quoridor_rl.game import Player, Position
 @dataclass(frozen=True, slots=True)
 class SelfPlayGame:
     """一局搜索自对弈产生的样本、结果与搜索性能统计。"""
+
     examples: list[TrainingExample]
     plies: int
     winner: Player | None

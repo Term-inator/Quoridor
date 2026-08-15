@@ -1,6 +1,6 @@
 # Quoridor RL
 
-English | [中文](README.md)
+English | [中文](https://github.com/Term-inator/Quoridor/blob/main/README.md)
 
 A Python implementation of official two-player Quoridor with:
 
@@ -11,7 +11,21 @@ A Python implementation of official two-player Quoridor with:
 - human-vs-human and human-vs-random terminal games;
 - an optional bilingual Pygame desktop interface for local games and agent spectating.
 
-The first release uses a fixed 9×9 board with 10 walls per player. It does not include four-player games, variable board sizes, training algorithms, or reward shaping. The project has not yet been published to PyPI.
+The first release uses a fixed 9×9 board with 10 walls per player. It does not include four-player games, variable board sizes, training algorithms, or reward shaping.
+
+## Installation
+
+The base package supports Python 3.11–3.14:
+
+```bash
+pip install quoridor-rl
+```
+
+Install the optional dependency to use the Pygame interface:
+
+```bash
+pip install "quoridor-rl[pygame]"
+```
 
 ## Development environment
 
@@ -220,8 +234,10 @@ uv run ruff format --check .
 uv run mypy src
 ```
 
+The maintainer release procedure is documented in the [release guide](https://github.com/Term-inator/Quoridor/blob/main/docs/releasing.md).
+
 `tests/package/` covers ordinary movement, straight jumps, diagonal jumps when a wall or boundary blocks the square behind a pawn, wall conflicts, preservation of both players' paths, terminal states, action-codec round trips, canonical observations, the AEC lifecycle, complete random games, and the CLI. This layer also runs PettingZoo's official `api_test`. `tests/pygame/` verifies the optional graphical interface, while `tests/experiments/` verifies training code excluded from the package. Experimental win rates are not a release gate.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](https://github.com/Term-inator/Quoridor/blob/main/LICENSE)

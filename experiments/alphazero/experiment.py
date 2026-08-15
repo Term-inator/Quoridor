@@ -29,6 +29,7 @@ from experiments.alphazero.training import (
 @dataclass(frozen=True, slots=True)
 class ExperimentArtifacts:
     """一次实验生成的指标、摘要、曲线、权重、配置及可选对比路径。"""
+
     metrics_path: Path
     summary_path: Path
     curve_path: Path

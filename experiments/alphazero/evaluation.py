@@ -25,6 +25,7 @@ _worker_config: AlphaZeroConfig | None = None
 @dataclass(frozen=True, slots=True)
 class RoleResult:
     """搜索策略担任某个固定角色时的结果计数。"""
+
     games: int
     wins: int
     losses: int
@@ -34,6 +35,7 @@ class RoleResult:
 @dataclass(frozen=True, slots=True)
 class EvaluationResult:
     """汇总先后手、非法动作及计划局数完成情况。"""
+
     as_player_0: RoleResult
     as_player_1: RoleResult
     illegal_actions: int

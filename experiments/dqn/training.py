@@ -15,6 +15,7 @@ from quoridor_rl.codec import ActionCodec, ObservationCodec
 @dataclass(frozen=True, slots=True)
 class DQNConfig:
     """DQN 采样、回放、优化、探索和对手池的完整超参数。"""
+
     seed: int = 0
     environment_count: int = 4
     max_plies: int = 512
@@ -38,6 +39,7 @@ class DQNConfig:
 @dataclass(frozen=True, slots=True)
 class Transition:
     """从学习方一次行动到其下次决策点的时序差分转移。"""
+
     observation: torch.Tensor
     action_mask: torch.Tensor
     action: int
@@ -52,6 +54,7 @@ class Transition:
 @dataclass(frozen=True, slots=True)
 class TransitionBatch:
     """可向设备整体迁移的一批张量化回放样本。"""
+
     observations: torch.Tensor
     action_masks: torch.Tensor
     actions: torch.Tensor
