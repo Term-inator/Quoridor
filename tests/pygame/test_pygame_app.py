@@ -73,6 +73,45 @@ def test_humans_can_start_a_game_and_move_to_a_legal_target() -> None:
     assert application.snapshot.feedback == "已移动：e2。下一回合已回到移动模式。"
 
 
+def test_legal_move_targets_follow_the_current_player_color() -> None:
+    pygame = pytest.importorskip("pygame")
+    from quoridor_rl import Square
+    from quoridor_rl.pygame_ui.app import COLORS, Control, PygameApplication
+
+    application = PygameApplication()
+    surface = pygame.Surface((1280, 800))
+    application.draw(surface)
+    for control in (Control.MODE_HUMAN_HUMAN, Control.START_GAME):
+        application.handle_event(
+            pygame.event.Event(
+                pygame.MOUSEBUTTONDOWN,
+                button=1,
+                pos=application.control_rect(control).center,
+            )
+        )
+
+    application.draw(surface)
+    player_0_target = Square(7, 4)
+    assert (
+        surface.get_at(application.square_rect(player_0_target).center)
+        == COLORS["p0"]
+    )
+
+    application.handle_event(
+        pygame.event.Event(
+            pygame.MOUSEBUTTONDOWN,
+            button=1,
+            pos=application.square_rect(player_0_target).center,
+        )
+    )
+    application.draw(surface)
+    player_1_target = Square(1, 4)
+    assert (
+        surface.get_at(application.square_rect(player_1_target).center)
+        == COLORS["p1"]
+    )
+
+
 def test_human_wall_preview_uses_rules_and_illegal_click_does_not_advance() -> None:
     pygame = pytest.importorskip("pygame")
     from quoridor_rl import Orientation, PlaceWall, Position, WallAnchor

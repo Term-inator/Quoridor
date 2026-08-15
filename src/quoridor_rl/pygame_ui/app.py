@@ -51,7 +51,6 @@ COLORS = {
     "board_dark": pygame.Color("#8c6038"),
     "p0": pygame.Color("#176b55"),
     "p1": pygame.Color("#a44437"),
-    "valid": pygame.Color("#238b61"),
     "invalid": pygame.Color("#c83933"),
     "focus": pygame.Color("#f0a33a"),
     "selected": pygame.Color("#16231e"),
@@ -1232,9 +1231,10 @@ class PygameApplication:
                 rect = self._board.square_rect(square)
                 pygame.draw.rect(surface, COLORS["board"], rect, border_radius=5)
                 if square in legal_targets:
+                    assert position.to_move is not None
                     pygame.draw.circle(
                         surface,
-                        COLORS["valid"],
+                        _player_color(position.to_move),
                         rect.center,
                         max(5, round(rect.width * 0.13)),
                     )
